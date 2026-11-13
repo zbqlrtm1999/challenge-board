@@ -1,0 +1,57 @@
+# 집에서 할 일
+
+학교 공용 컴퓨터에서는 보드만 만들고, 아래 일은 집에서 하기로 했어요. 위에서부터 차례대로 하면 돼요. Claude 계정이 학교와 달라도 괜찮아요. 필요한 내용은 모두 이 저장소에 있어요.
+
+- 보드: https://zbqlrtm1999.github.io/challenge-board/
+- 저장소: https://github.com/zbqlrtm1999/challenge-board
+
+## 1. 보드 열쇠 확인
+
+열쇠는 휴대폰 잠금 메모에 보관했어요. 잃어버렸거나 만료됐으면 새로 만들어요.
+
+1. github.com 로그인 → 오른쪽 위 프로필 → **Settings**
+2. 왼쪽 맨 아래 **Developer settings** → **Personal access tokens** → **Fine-grained tokens** → **Generate new token**
+3. Token name: `challenge-board 열쇠` / Expiration: 원하는 기간 (예: 90일)
+4. Repository access: **Only select repositories** → `challenge-board`
+5. Permissions → Repository permissions → **Contents: Read and write** (다른 건 그대로)
+6. **Generate token** → 나온 `github_pat_…` 문자열을 휴대폰 잠금 메모에 저장 (한 번만 보여요)
+7. 예전 열쇠가 있으면 같은 화면에서 **Delete**
+
+보드에서 [열쇠 넣기] → 붙여 넣기 → [연결]. 공용 컴퓨터에서는 끝나고 꼭 [잠그기].
+
+## 2. 내 폴더 연결 (집 PC, Chrome·Edge)
+
+1. 내 컴퓨터에 보드 기록을 둘 폴더를 정해요. PARA 정리 중이라면 어느 칸에 둘지 직접 정하세요.
+2. 보드 → **설정** 탭 → **내 폴더** → [📁 폴더 연결] → 폴더 선택 → 권한 허용
+3. [가져오기]를 누르면 저장소의 파일(기록, 엑셀 과제, 문서)이 전부 폴더로 내려와요.
+4. 그다음부터는 보드에서 [저장]할 때마다 같은 파일이 폴더에도 생겨요.
+
+## 3. 일요일 AI 코치 채점 예약 (집 Claude 계정)
+
+1. claude.ai/code 에서 GitHub를 연결하고 `zbqlrtm1999/challenge-board` 저장소에 접근을 허용해요.
+2. Claude Code에서 아래 문장을 그대로 붙여 넣어요.
+
+```
+/schedule 매주 일요일 23:50 (Asia/Seoul)에 zbqlrtm1999/challenge-board 저장소에서 docs/AGENTS.md의 "일요일 AI 코치 채점" 절차를 실행하고, data/feedback.json을 커밋해서 push해줘. records.json은 고치지 마.
+```
+
+3. 한 번 바로 실행해 보고, 보드 기록 탭에 점수와 피드백이 나오는지 확인해요. 예약 전에 쓴 답변도 이때 한꺼번에 채점돼요.
+
+## 4. Codex로 작업할 때
+
+Codex는 저장소의 `AGENTS.md`를 자동으로 읽어요. 예약 작업 대신 필요할 때 이렇게 부탁하면 돼요.
+
+| 하고 싶은 일 | Codex에 붙여 넣을 문장 |
+| --- | --- |
+| 이번 주 채점 | `docs/AGENTS.md의 "일요일 AI 코치 채점" 절차대로 아직 채점 안 된 기록을 채점하고 커밋해줘.` |
+| 새 CS 세트 | `docs/AGENTS.md의 "새 CS 문의 세트 만들기" 규칙대로 set4를 만들어줘. 주제는 ○○.` |
+| 엑셀 과제 다시 만들기 | `scripts/make_excel.py로 2026-11-23 주 과제를 --force로 다시 만들고 커밋해줘.` |
+| 가고 싶은 회사 게임 추가 | 보드 설정 탭에서 직접 추가하는 게 가장 쉬워요. |
+
+Claude에서도 같은 문장을 쓰면 돼요.
+
+## 5. 계정이 바뀌었을 때 확인
+
+- 저장소에 `docs/` 폴더가 있으면 어떤 AI·계정이든 이어서 작업할 수 있어요.
+- 일요일 채점 예약은 **만든 계정에서만** 돌아가요. 계정을 바꾸면 3번을 새 계정에서 다시 해요.
+- 학교 계정에서 만든 예약이 있다면 지워 주세요(중복 채점 방지). 이미 채점된 날짜는 다시 채점하지 않게 되어 있어요.

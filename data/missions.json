@@ -1,0 +1,8 @@
+{
+  "missions": [
+    { "id": "m-community", "name": "커뮤니티 동향 주간 보고서", "target": 4, "unit": "주", "deadline": "2026-12-13", "menu": "community", "createdAt": "2026-11-16" },
+    { "id": "m-notice", "name": "공지 작성", "target": 5, "unit": "개", "deadline": "2026-12-20", "menu": "notice", "createdAt": "2026-11-16" },
+    { "id": "m-patch", "name": "패치노트 분석", "target": 10, "unit": "개", "deadline": "2026-12-31", "menu": "patch", "createdAt": "2026-11-16" },
+    { "id": "m-excel", "name": "운영 지표 엑셀 대시보드", "target": 1, "unit": "개", "deadline": "2026-12-31", "menu": "excel", "createdAt": "2026-11-16" }
+  ]
+}

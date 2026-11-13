@@ -1,0 +1,41 @@
+name: 주간 엑셀 과제 만들기
+
+on:
+  schedule:
+    - cron: "0 15 * * 0"   # 일요일 15:00 UTC = 월요일 00:00 한국 시간
+  workflow_dispatch:
+    inputs:
+      week:
+        description: "과제 주 월요일 (YYYY-MM-DD). 비우면 이번 주"
+        required: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: weekly-excel
+  cancel-in-progress: false
+
+jobs:
+  make:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install openpyxl
+      - name: 과제 만들기
+        env:
+          WEEK: ${{ github.event.inputs.week }}
+        run: |
+          if [ -n "$WEEK" ]; then python scripts/make_excel.py --week "$WEEK"; else python scripts/make_excel.py; fi
+      - name: 커밋
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add excel data/excel
+          if git diff --cached --quiet; then echo "바뀐 것 없음"; exit 0; fi
+          git commit -m "주간 엑셀 과제: $(date -u -d '+9 hours' +%F)"
+          git pull --rebase
+          git push
