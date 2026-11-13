@@ -198,14 +198,31 @@ async function importAll() {
 // ───────── 팩·게임·세트 ─────────
 const start = () => S.settings.startDate;
 const isPractice = (d) => d < start();
-function setFor(date) {
+// 한 달 세트 = 원래 세트(기본 · 불만·항의 · 까다로운 상황)에서 요일마다 하나씩 섞은 것.
+// k번째 달: 원래 세트 j의 그 요일 문의 중 (k + j) % 개수 번째. 세트 수만큼 달이 지나면 모든 문의를 한 번씩 쓴다.
+let mixCache = null;
+function mixedSets() {
+  if (mixCache && mixCache.pack === S.pack) return mixCache.list;
   const sets = S.pack?.sets || [];
+  const list = sets.map((_, k) => {
+    const inquiries = {};
+    for (let d = 1; d <= 7; d++) inquiries[String(d)] = sets.map((s, j) => { const l = s.inquiries?.[String(d)] || []; return l.length ? l[(k + j) % l.length] : null; }).filter(Boolean);
+    const events = {};
+    for (const g of S.pack?.fictionalGames || []) events[g.id] = sets.flatMap((s) => s.events?.[g.id] || []);
+    return { id: `mix${k + 1}`, name: `${k + 1}번째 달 세트`, theme: sets.map((s) => s.name.split('·').pop().trim()).join(' + ') + ' 하루에 하나씩', inquiries, events };
+  });
+  mixCache = { pack: S.pack, list };
+  return list;
+}
+function setFor(date) {
+  const sets = mixedSets();
   if (!sets.length) return null;
   const i = Math.max(0, monthIdx(date) - monthIdx(start()));
   return sets[i % sets.length];
 }
 const gameFor = (date) => (S.pack?.fictionalGames || []).find((g) => g.day === dayNum(date));
 const inquiriesFor = (date) => setFor(date)?.inquiries?.[String(dayNum(date))] || [];
+const levelOf = (qid) => (S.pack?.sets || []).find((s) => qid.startsWith(s.id + '-'))?.name.split('·').pop().trim() || '';
 function findInquiry(qid) {
   for (const set of S.pack?.sets || []) for (const [day, list] of Object.entries(set.inquiries || {})) {
     const q = list.find((x) => x.id === qid);
@@ -589,7 +606,7 @@ function viewToday() {
     const pfb = prev ? S.feedback[prev]?.cs?.[q.id] : null;
     const fb = S.feedback[date]?.cs?.[q.id];
     return `<article class="q ${ans.trim() ? '' : 'active'}">
-      <div class="q-top"><span class="q-no">문의 ${i + 1}</span><span class="tag">${esc(q.type)}</span>
+      <div class="q-top"><span class="q-no">문의 ${i + 1}</span><span class="tag">${esc(q.type)}</span><span class="tag sky">${esc(levelOf(q.id))}</span>
         <span class="state ${ans.trim() ? 'done' : ''}">${ans.trim() ? '작성함' : '아직'}</span></div>
       <p class="inquiry">${esc(q.text)}</p>
       <dl class="facts">${(q.facts || []).map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>
@@ -802,7 +819,7 @@ function viewRecords() {
       <button type="button" data-act="rview" data-id="date" aria-pressed="${S.ui.rview === 'date'}">날짜별 기록</button></div>`;
   if (S.ui.rview === 'date') return head + dateView();
   if (S.ui.qopen) return head + qDetail(S.ui.qopen);
-  const sets = S.pack?.sets || [];
+  const sets = mixedSets();
   const cur = setFor(S.today);
   const set = sets.find((s) => s.id === S.ui.rset) || cur;
   if (!set) return head + '<div class="empty">문의 세트가 없어요.</div>';
@@ -814,7 +831,7 @@ function viewRecords() {
       const ents = csEntries(q.id), scored = ents.filter((e) => typeof e.fb?.score === 'number');
       const first = scored[0]?.fb.score, last = scored[scored.length - 1]?.fb.score;
       cards.push(`<button class="qcard ${set.id === cur?.id && todayIds.includes(q.id) ? 'today' : ''}" type="button" data-act="qopen" data-qid="${esc(q.id)}">
-        <span class="row"><span class="tag">${esc(q.type)}</span><span class="sub">${wdName(day)} · ${esc(g?.name || '')}</span></span>
+        <span class="row"><span class="tag">${esc(q.type)}</span><span class="tag sky">${esc(levelOf(q.id))}</span><span class="sub">${wdName(day)} · ${esc(g?.name || '')}</span></span>
         <span class="qt">${esc(q.text)}</span>
         <span class="qm"><span>${ents.length}회 답변</span><span class="num">${scored.length ? `${first} → ${last}` : '채점 전'} ${scored.length > 1 ? (last > first ? '<span class="trend up">📈</span>' : '─') : ''}</span></span></button>`);
     }
@@ -842,7 +859,7 @@ function qDetail(qid) {
   }
   return `<div class="row"><button class="btn small ghost" type="button" data-act="qback">← 문의 카드</button></div>
     <section class="card">
-      <div class="q-top"><span class="tag">${esc(q.type)}</span><span class="sub">${esc(set.name)} · ${wdName(game?.day ?? 0)}요일 · ${esc(game?.name || '')}</span></div>
+      <div class="q-top"><span class="tag">${esc(q.type)}</span><span class="tag sky">${esc(levelOf(qid))}</span><span class="sub">${wdName(game?.day ?? 0)}요일 · ${esc(game?.name || '')}</span></div>
       <p class="inquiry">${esc(q.text)}</p>
       <dl class="facts">${(q.facts || []).map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>
       <div class="row"><button class="btn small" type="button" data-act="cmp-go" data-qid="${esc(qid)}" ${ents.length < 2 ? 'disabled' : ''}>⇄ 비교하기</button>
@@ -1056,11 +1073,11 @@ function viewGuide() {
   const sel = g.blocks.find((b) => b[0] === S.ui.gblock);
   return `<section class="guide-band">
       <h2>사용법 안내</h2>
-      <p>이 페이지는 보드 사용법을 알려 주는 곳이에요. 아래 칸은 실제 화면의 배치예요. 궁금한 칸을 누르면 설명이 나오고, 다시 누르면 닫혀요.</p>
-      <div class="menu" role="group" aria-label="설명할 화면">${Object.entries(GUIDE).map(([id, x]) => `<button type="button" data-act="gscreen" data-id="${id}" aria-pressed="${S.ui.gscreen === id}">${x.name}</button>`).join('')}</div>
+      <p>① 설명을 볼 화면을 고르세요. ② 아래 점선 칸은 그 화면의 실제 배치예요. 궁금한 칸을 누르면 바로 아래 파란 상자에 설명이 나와요.</p>
+      <div class="menu" role="group" aria-label="설명할 화면">${Object.entries(GUIDE).map(([id, x]) => `<button type="button" data-act="gscreen" data-id="${id}" aria-pressed="${S.ui.gscreen === id}">${x.name} 화면</button>`).join('')}</div>
     </section>
-    <div class="gmap">${g.blocks.map(([id, label, small, span]) => `<button class="gblock ${span}" type="button" data-act="gblock" data-id="${id}" aria-pressed="${S.ui.gblock === id}">${esc(label)}<small>${esc(small)}</small></button>`).join('')}</div>
-    <div class="gexplain" aria-live="polite">${sel ? `<strong>${esc(sel[1])}</strong><p>${esc(sel[4])}</p>` : '<p class="sub">궁금하신 기능을 클릭하세요.</p>'}</div>`;
+    <div class="gexplain" aria-live="polite">${sel ? `<strong>${esc(g.name)} 화면 · ${esc(sel[1])}</strong><p>${esc(sel[4])}</p><p class="sub">같은 칸을 다시 누르면 닫혀요.</p>` : '<p class="sub">궁금하신 기능을 클릭하세요.</p>'}</div>
+    <div class="gmap">${g.blocks.map(([id, label, small, span]) => `<button class="gblock ${span}" type="button" data-act="gblock" data-id="${id}" aria-pressed="${S.ui.gblock === id}">${esc(label)}<small>${esc(small)}</small></button>`).join('')}</div>`;
 }
 
 // ───────── 공유용 요약 ─────────

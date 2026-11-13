@@ -306,7 +306,7 @@ textarea[readonly] { background: var(--bg); }
 .gblock[aria-pressed="true"] { background: var(--sky-soft); border-color: var(--sky-deep); border-style: solid; }
 .gblock small { display: block; font-family: var(--font-body); font-size: 12.5px; color: var(--muted); margin-top: 2px; }
 .span2 { grid-column: span 2; } .span3 { grid-column: 1 / -1; }
-.gexplain { position: sticky; bottom: 12px; background: var(--surface); border: 1px solid var(--sky); border-radius: 14px; padding: 14px 18px; font-size: 14px; }
+.gexplain { background: var(--sky-soft); border: 1px solid var(--sky); border-radius: 14px; padding: 14px 18px; font-size: 14px; min-height: 64px; display: flex; flex-direction: column; justify-content: center; gap: 4px; }
 .gexplain strong { font-family: var(--font-display); font-weight: 400; font-size: 16px; display: block; }
 
 /* 요약 */
