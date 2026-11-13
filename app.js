@@ -209,7 +209,7 @@ function mixedSets() {
     for (let d = 1; d <= 7; d++) inquiries[String(d)] = sets.map((s, j) => { const l = s.inquiries?.[String(d)] || []; return l.length ? l[(k + j) % l.length] : null; }).filter(Boolean);
     const events = {};
     for (const g of S.pack?.fictionalGames || []) events[g.id] = sets.flatMap((s) => s.events?.[g.id] || []);
-    return { id: `mix${k + 1}`, name: `${k + 1}번째 달 세트`, theme: sets.map((s) => s.name.split('·').pop().trim()).join(' + ') + ' 하루에 하나씩', inquiries, events };
+    return { id: `mix${k + 1}`, name: `${k + 1}번째 달 세트`, theme: sets.map(levelName).join(' + ') + ' 하루에 하나씩', inquiries, events };
   });
   mixCache = { pack: S.pack, list };
   return list;
@@ -222,7 +222,8 @@ function setFor(date) {
 }
 const gameFor = (date) => (S.pack?.fictionalGames || []).find((g) => g.day === dayNum(date));
 const inquiriesFor = (date) => setFor(date)?.inquiries?.[String(dayNum(date))] || [];
-const levelOf = (qid) => (S.pack?.sets || []).find((s) => qid.startsWith(s.id + '-'))?.name.split('·').pop().trim() || '';
+function levelName(set) { return set.name.split(' · ').slice(1).join(' · ').trim() || set.name; } // "2세트 · 불만·항의" → "불만·항의"
+const levelOf = (qid) => { const s = (S.pack?.sets || []).find((x) => qid.startsWith(x.id + '-')); return s ? levelName(s) : ''; };
 function findInquiry(qid) {
   for (const set of S.pack?.sets || []) for (const [day, list] of Object.entries(set.inquiries || {})) {
     const q = list.find((x) => x.id === qid);
