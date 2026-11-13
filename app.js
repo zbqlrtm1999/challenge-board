@@ -241,7 +241,9 @@ function rotationGame(date) {
   const list = rotationList();
   if (!list.length) return null;
   const w = Math.max(0, Math.floor(diffDays(mondayOf(start()), mondayOf(date)) / 7));
-  return { game: list[w % list.length], index: w % list.length, n: list.length, next: list[(w + 1) % list.length], from: mondayOf(date) };
+  const from = mondayOf(date);
+  const ov = gameById(S.settings.weekOverrides?.[from]);
+  return { game: ov || list[w % list.length], changed: !!ov, index: w % list.length, n: list.length, next: list[(w + 1) % list.length], from };
 }
 const menus = () => S.acts.menus || [];
 const menuById = (id) => menus().find((m) => m.id === id);
@@ -478,6 +480,18 @@ async function saveJSONFile(path, data, msg) {
   catch (e) { toast(saveError(e)); return false; }
   finally { S.busy = false; render(); }
 }
+// 설정 일부만 바꿔 저장 (최신 settings.json을 받아서 고친 뒤 저장)
+async function saveSettingsPatch(fn, msg, okMsg) {
+  if (needKey() || S.busy) return;
+  S.busy = true; render();
+  try {
+    const st = { ...clone(DEFAULT_SETTINGS), ...JSON.parse((await readRepoText('data/settings.json')) || '{}') };
+    fn(st);
+    await commitFiles([{ path: 'data/settings.json', content: JSON.stringify(st, null, 2) + '\n' }], msg);
+    S.settings = st; S.form = null; S.draft = null; S.draftDate = null;
+    toast(okMsg);
+  } catch (e) { toast(saveError(e)); } finally { S.busy = false; render(); }
+}
 async function saveReflection(date, qid) {
   if (needKey() || S.busy) return;
   const text = S.ui.refl[date + '|' + qid] ?? S.records[date]?.reflect?.[qid] ?? '';
@@ -581,7 +595,10 @@ function viewToday() {
   const otherDates = sortedDates().filter((x) => x !== S.today && x !== yday && canEdit(x)).reverse().slice(0, 7);
 
   const banners = [];
-  if (isPractice(date)) banners.push(`<p class="banner info">연습 기간이에요. 이 기간 기록은 통계에 들어가지 않아요. 챌린지는 ${longDate(start())}에 시작해요.</p>`);
+  if (isPractice(date)) banners.push(`<div class="banner info row">
+    <span>연습 기간이에요. 이 기간 기록은 통계에 들어가지 않아요. 챌린지는 <b>${longDate(start())}</b>에 시작해요.</span>
+    <span class="row edit-only"><label class="sub" for="start-quick">시작일</label><input type="date" id="start-quick" value="${start()}" style="width:auto">
+    <button class="btn small" type="button" data-act="start-save" ${S.busy ? 'disabled' : ''}>시작일 바꾸기</button></span></div>`);
   if (graded(date)) banners.push('<p class="banner">이 날은 일요일 채점이 끝나서 더 고칠 수 없어요. 결과는 아래와 기록 탭에서 볼 수 있어요.</p>');
   else if (!canEdit(date)) banners.push('<p class="banner">이 날짜는 새로 기록할 수 없어요. 새 기록은 오늘과 어제만 쓸 수 있어요.</p>');
   else if (date !== S.today && !S.records[date]) banners.push('<p class="banner pink">어제 기록이에요. 저장하면 "⏱ 늦은 기록"으로 표시되고, 연속 기록은 그대로 이어져요.</p>');
@@ -684,7 +701,19 @@ function viewToday() {
       ${rot ? `<section class="card"><div class="card-head"><h2>이번 주 게임</h2><span class="sub"><span class="num">${rot.index + 1}/${rot.n}</span>주차</span></div>
         <div class="week-game"><strong>${esc(rot.game.name)}</strong><span class="sub">${esc(rot.game.genre || '')} · ${esc(rot.game.platform || '')} · <span class="num">${md(rot.from)} – ${md(addDays(rot.from, 6))}</span></span></div>
         <div class="rot" style="--n:${rot.n}" aria-label="로테이션 ${rot.n}주 중 ${rot.index + 1}주차">${Array.from({ length: rot.n }, (_, i) => `<span class="${i < rot.index ? 'past' : i === rot.index ? 'now' : ''}"></span>`).join('')}</div>
-        <p class="sub">다음 주 ${esc(rot.next.name)}</p></section>` : ''}
+        <p class="sub">${rot.changed ? '이번 주만 바꾼 게임이에요 · ' : ''}다음 주 ${esc(rot.next.name)}</p>
+        <details class="policy edit-only" style="padding:10px 0 0" ${S.ui.wkOpen ? 'open' : ''}><summary data-act="wk-toggle">이번 주 게임 바꾸기 · 게임 추가</summary>
+          <div class="stack" style="margin-top:10px">
+            <label class="field"><span>이번 주(${md(rot.from)}~) 게임</span>
+              <select id="wk-game">${allGames().map((g) => `<option value="${esc(g.id)}" ${g.id === rot.game.id ? 'selected' : ''}>${esc(g.name)}</option>`).join('')}</select></label>
+            <div class="row"><button class="btn small" type="button" data-act="wk-set" ${S.busy ? 'disabled' : ''}>이번 주 게임으로 정하기</button>
+              ${rot.changed ? `<button class="btn small ghost" type="button" data-act="wk-reset" ${S.busy ? 'disabled' : ''}>원래 순서로</button>` : ''}</div>
+            <label class="field"><span>새 게임 추가 (가고 싶은 회사의 게임 등)</span><input type="text" id="wk-new-name" placeholder="게임 이름"></label>
+            <input type="text" id="wk-new-genre" placeholder="장르 · 플랫폼 (예: MMORPG · PC)" aria-label="장르와 플랫폼">
+            <label class="toggle"><input type="checkbox" id="wk-new-now" checked> 이번 주 게임으로 바로 정하기</label>
+            <button class="btn small" type="button" data-act="wk-add" ${S.busy ? 'disabled' : ''}>게임 추가</button>
+            <p class="sub">추가한 게임은 로테이션 맨 뒤에 들어가요. 순서는 설정 탭에서 바꿔요.</p>
+          </div></details></section>` : ''}
       <section class="card"><div class="card-head"><h2>메인 미션</h2><a class="sub" href="#missions">전체 보기</a></div>
         ${activeMissions().length ? `<ul class="missions">${activeMissions().slice(0, 4).map(missionItem).join('')}</ul>` : '<p class="sub">진행 중인 미션이 없어요. 미션 탭에서 등록해요.</p>'}</section>
     </aside>
@@ -1035,9 +1064,9 @@ function viewSettings() {
 const GUIDE = {
   today: { name: '오늘', blocks: [
     ['head', '머리 영역', '연속 기록 · 열쇠 · 잠그기', 'span3', '연속 기록은 일일 항목을 모두 끝낸 날이 며칠째 이어지는지예요. 저장하려면 PC에서 [열쇠 넣기]로 보드 열쇠를 붙여 넣어요. 공용 컴퓨터에서는 다 쓴 뒤 꼭 [잠그기]를 눌러요.'],
-    ['daily', '일일 항목', '날짜 고르기 · 체크', 'span3', '눌러서 체크해요. 직무능력준비는 CS 3개와 활동 1개를 모두 하면 자동으로 완료돼요. 새 기록은 오늘과 어제만 쓸 수 있고, 어제 기록은 "늦은 기록"으로 표시돼요.'],
+    ['daily', '일일 항목', '날짜 고르기 · 체크 · 시작일', 'span3', '눌러서 체크해요. 연습 기간에는 안내 줄에서 시작일을 바꿀 수 있어요(설정 탭에서도 가능). 직무능력준비는 CS 3개와 활동 1개를 모두 하면 자동으로 완료돼요. 새 기록은 오늘과 어제만 쓸 수 있고, 어제 기록은 "늦은 기록"으로 표시돼요.'],
     ['cs', '오늘의 CS 문의', '가상 게임 · 이벤트 · 지난 답변', 'span2', '요일마다 가상 게임 하나의 문의 3개가 와요. 이벤트 칸과 상황 정보를 읽고 답변을 써요. 아래에는 지난주 같은 문의에 쓴 내 답변과 AI 코치 피드백이 보여요.'],
-    ['side', '이번 주 게임 · 메인 미션', '오른쪽 칸', '', '오늘의 활동에 쓰는 실제 게임은 매주 월요일 바뀌어요. 미션은 마감이 가까운 순서로 보여요.'],
+    ['side', '이번 주 게임 · 메인 미션', '게임 바꾸기 · 추가', '', '오늘의 활동에 쓰는 실제 게임은 매주 월요일 바뀌어요. [이번 주 게임 바꾸기 · 게임 추가]를 열면 이번 주 게임만 바꾸거나 새 게임을 넣을 수 있어요. 미션은 마감이 가까운 순서로 보여요.'],
     ['activity', '오늘의 활동 · 바쁜 날 모드', '메뉴 4개 중 하나', 'span2', '패치노트 분석, 커뮤니티 보고서, 공지 작성, 엑셀·데이터 중 하나를 골라 써요. 연결된 미션이 자동으로 +1 돼요. 바쁜 날 모드를 켜면 CS 1개만 해도 가볍게 완료로 인정돼요 (한 주 2번까지).'],
     ['save', '저장', '맨 아래', '', '[기록 저장]을 누르면 GitHub에 바로 기록돼요. 같은 날 기록은 그 주 일요일 채점 전까지 다시 저장해서 고칠 수 있어요.'],
   ] },
@@ -1316,6 +1345,35 @@ document.addEventListener('click', async (e) => {
       const f = clone(S.form);
       if (!/^\d{4}-\d{2}-\d{2}$/.test(f.startDate || '')) { toast('시작일을 확인해 주세요.'); return; }
       if (await saveJSONFile('data/settings.json', f, '설정 저장')) { S.settings = { ...clone(DEFAULT_SETTINGS), ...f }; S.form = null; S.draft = null; S.draftDate = null; render(); }
+      break;
+    }
+    // 오늘 화면에서 바로 바꾸는 설정
+    case 'wk-toggle': S.ui.wkOpen = !el.closest('details').open; break;
+    case 'start-save': {
+      const v = $('#start-quick')?.value || '';
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) { toast('시작일을 골라 주세요.'); return; }
+      await saveSettingsPatch((st) => { st.startDate = v; }, `시작일: ${v}`, `시작일을 ${longDate(v)}로 바꿨어요.`);
+      break;
+    }
+    case 'wk-set': case 'wk-reset': {
+      const mon = mondayOf(S.date || S.today), id = $('#wk-game')?.value;
+      await saveSettingsPatch((st) => {
+        st.weekOverrides = { ...(st.weekOverrides || {}) };
+        if (act === 'wk-set') st.weekOverrides[mon] = id; else delete st.weekOverrides[mon];
+      }, `이번 주 게임: ${mon}`, act === 'wk-set' ? `이번 주 게임을 ${gameById(id)?.name || id}(으)로 바꿨어요.` : '원래 순서로 돌렸어요.');
+      break;
+    }
+    case 'wk-add': {
+      const name = ($('#wk-new-name')?.value || '').trim();
+      if (!name) { toast('게임 이름을 적어 주세요.'); return; }
+      const [genre = '', platform = ''] = ($('#wk-new-genre')?.value || '').split('·').map((s) => s.trim());
+      const g = { id: 'g' + Date.now().toString(36), name, genre, platform, custom: true };
+      const now = $('#wk-new-now')?.checked, mon = mondayOf(S.date || S.today);
+      await saveSettingsPatch((st) => {
+        st.extraGames = [...(st.extraGames || []), g];
+        st.gameRotation = [...(st.gameRotation?.length ? st.gameRotation : allGames().map((x) => x.id)), g.id];
+        if (now) st.weekOverrides = { ...(st.weekOverrides || {}), [mon]: g.id };
+      }, `게임 추가: ${name}`, `${name}을(를) 추가했어요.${now ? ' 이번 주 게임으로 정했어요.' : ''}`);
       break;
     }
     case 'folder-connect': await connectFolder(); break;

@@ -7,12 +7,39 @@
   "repo": "challenge-board",
   "branch": "main",
   "dailyItems": [
-    { "id": "vitamin", "name": "아침 비타민", "note": "" },
-    { "id": "jobs", "name": "공고 확인", "note": "공고판에서 새 공고 보기" },
-    { "id": "job", "name": "직무능력준비", "type": "job", "note": "CS 3개 + 활동 1개" },
-    { "id": "walk", "name": "운동", "note": "산책 30분" }
+    {
+      "id": "vitamin",
+      "name": "아침 비타민",
+      "note": ""
+    },
+    {
+      "id": "jobs",
+      "name": "공고 확인",
+      "note": "공고판에서 새 공고 보기"
+    },
+    {
+      "id": "job",
+      "name": "직무능력준비",
+      "type": "job",
+      "note": "CS 3개 + 활동 1개"
+    },
+    {
+      "id": "walk",
+      "name": "운동",
+      "note": "산책 30분"
+    }
   ],
-  "gameRotation": ["lol", "valorant", "fconline", "pubg", "lostark", "lineagem", "nikke", "maplei"],
+  "gameRotation": [
+    "lol",
+    "valorant",
+    "fconline",
+    "pubg",
+    "lostark",
+    "lineagem",
+    "nikke",
+    "maplei"
+  ],
   "extraGames": [],
-  "busyLimitPerWeek": 2
+  "busyLimitPerWeek": 2,
+  "weekOverrides": {}
 }
