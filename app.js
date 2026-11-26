@@ -1,6 +1,6 @@
 'use strict';
 /*
- * 취업 준비 챌린지보드
+ * 운영 직무 챌린지보드
  * - 정적 페이지(GitHub Pages). 기록은 같은 저장소의 data/ 와 records/ 에 저장한다.
  * - 저장은 "보드 열쇠"(이 저장소 전용 fine-grained 토큰)로 GitHub API에 직접 커밋한다.
  * - 열쇠는 sessionStorage에만 두고 [잠그기] 또는 창 닫기로 지운다.
@@ -41,16 +41,14 @@ const wdName = (n) => WD[n % 7];
 
 // ───────── 상태 ─────────
 const DEFAULT_SETTINGS = {
-  title: '취업 준비 챌린지보드',
+  title: '운영 직무 챌린지보드',
   subtitle: '게임운영 지망생의 매일 CS·운영 연습 기록',
   startDate: '2026-11-16',
   pack: 'game-ops',
   owner: 'zbqlrtm1999', repo: 'challenge-board', branch: 'main',
   dailyItems: [
-    { id: 'vitamin', name: '아침 비타민', note: '' },
     { id: 'jobs', name: '공고 확인', note: '공고판에서 새 공고 보기' },
     { id: 'job', name: '직무능력준비', type: 'job', note: 'CS 3개 + 활동 1개' },
-    { id: 'walk', name: '운동', note: '산책 30분' },
   ],
   gameRotation: [], extraGames: [], busyLimitPerWeek: 2,
 };

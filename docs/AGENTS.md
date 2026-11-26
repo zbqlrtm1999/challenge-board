@@ -1,6 +1,6 @@
 # 챌린지보드 작업 규칙 (Claude · Codex 공통)
 
-게임운영 지망생의 취업 준비 챌린지보드예요. 정적 웹페이지(GitHub Pages)이고, 기록은 이 저장소 안의 파일에 쌓여요. 이 문서는 이 저장소에서 일하는 AI가 지킬 규칙과 작업 방법을 담고 있어요. 왜 이렇게 만들었는지는 [DECISIONS.md](DECISIONS.md), 집에서 처음 설정할 일은 [HOME_SETUP.md](HOME_SETUP.md)를 보세요.
+게임운영 지망생의 운영 직무 챌린지보드예요. 정적 웹페이지(GitHub Pages)이고, 기록은 이 저장소 안의 파일에 쌓여요. 이 문서는 이 저장소에서 일하는 AI가 지킬 규칙과 작업 방법을 담고 있어요. 왜 이렇게 만들었는지는 [DECISIONS.md](DECISIONS.md), 집에서 처음 설정할 일은 [HOME_SETUP.md](HOME_SETUP.md)를 보세요.
 
 ## 꼭 지킬 규칙
 
@@ -49,7 +49,7 @@ docs/                             안내 문서 (이 폴더)
   "2026-11-16": {
     "date": "2026-11-16", "savedAt": "ISO 시각", "late": false, "busy": false,
     "setId": "set1", "csGame": "starlight",
-    "daily": { "vitamin": true, "jobs": true, "walk": false },
+    "daily": { "jobs": true },
     "cs": { "answers": { "set1-1-1": "답변 글", "set1-1-2": "…" } },
     "activity": { "menu": "patch", "game": "lol", "fields": { "url": "https://…" }, "body": "본문",
                   "excel": { "week": "2026-11-16", "answers": { "q1": "282" }, "correct": { "q1": true }, "reason": "…", "report": "…" } },
