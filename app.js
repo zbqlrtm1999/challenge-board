@@ -58,7 +58,7 @@ const S = {
   records: {}, feedback: {}, excelIndex: { weeks: [] }, excelCache: {},
   token: null, dir: null, today: todayKST(), date: null, view: 'today',
   draft: null, draftDate: null, draftRestored: false, form: null, busy: false,
-  ui: { keyOpen: false, wmenu: null, rview: 'cs', rset: null, qopen: null, open: {}, cmp: [], cmpShow: null,
+  ui: { keyOpen: false, tmode: 'daily', wmenu: null, rview: 'cs', rset: null, qopen: null, open: {}, cmp: [], cmpShow: null,
         mfilter: 'all', mopen: null, mform: null, mcmp: [], mcmpShow: null, mini: {}, gscreen: 'today', gblock: null, refl: {} },
 };
 
@@ -680,33 +680,7 @@ function viewToday() {
         ${on && ed ? `<input type="text" style="flex:1 1 200px" data-bind="mm:${esc(m.id)}" value="${esc(d.missionManual[m.id] || '')}" placeholder="한 일 메모 (선택)">` : on ? `<span class="sub">${esc(d.missionManual[m.id] || '')}</span>` : ''}</div>`;
     }).join('')}</section>` : '';
 
-  return `
-  <section class="stack">
-    <div class="day-head">
-      <h2>${longDate(date)}</h2>
-      <div class="row">
-        <div class="seg" role="group" aria-label="날짜 고르기">
-          <button type="button" data-act="date" data-date="${S.today}" aria-pressed="${date === S.today}">오늘</button>
-          <button type="button" data-act="date" data-date="${yday}" aria-pressed="${date === yday}">어제</button>
-        </div>
-        ${otherDates.length ? `<select style="width:auto" data-act-change="date" aria-label="고칠 수 있는 지난 기록"><option value="">지난 기록 고치기</option>${otherDates.map((x) => `<option value="${x}" ${x === date ? 'selected' : ''}>${md(x)}</option>`).join('')}</select>` : ''}
-        <span class="sub">오늘 <span class="num">${lvl.done}/${lvl.total}</span> 완료${set ? ' · CS 문의 ' + esc(set.name) : ''}</span>
-      </div>
-    </div>
-    ${banners.join('')}
-    <div class="daily">${daily}</div>
-  </section>
-
-  <div class="grid">
-    <section class="card">
-      <div class="card-head"><h2>오늘의 CS 문의</h2>
-        <div class="row"><span class="sub"><span class="num">${csCount(d, date)}/3</span> 작성</span>
-        <label class="toggle edit-only" title="CS 1개만 해도 가볍게 완료로 인정돼요"><input type="checkbox" data-act="busy" ${d.busy ? 'checked' : ''} ${ed && busyOk ? '' : 'disabled'}> 바쁜 날 모드 <span class="sub num">(이번 주 ${used + (d.busy ? 1 : 0)}/${limit})</span></label></div>
-      </div>
-      ${rubricDetails()}
-      ${eventsHtml(set, game)}
-      ${csCards || '<div class="empty">이 날의 문의가 없어요.</div>'}
-    </section>
+  const sideHtml = `
     <aside class="side">
       ${rot ? `<section class="card"><div class="card-head"><h2>이번 주 게임</h2><span class="sub"><span class="num">${rot.index + 1}/${rot.n}</span>주차</span></div>
         <div class="week-game"><strong>${esc(rot.game.name)}</strong><span class="sub">${esc(rot.game.genre || '')} · ${esc(rot.game.platform || '')} · <span class="num">${md(rot.from)} – ${md(addDays(rot.from, 6))}</span></span></div>
@@ -726,14 +700,57 @@ function viewToday() {
           </div></details></section>` : ''}
       <section class="card"><div class="card-head"><h2>메인 미션</h2><a class="sub" href="#missions">전체 보기</a></div>
         ${activeMissions().length ? `<ul class="missions">${activeMissions().slice(0, 4).map(missionItem).join('')}</ul>` : '<p class="sub">진행 중인 미션이 없어요. 미션 탭에서 등록해요.</p>'}</section>
-    </aside>
+    </aside>`;
+  const mode = S.ui.tmode === 'weekly' ? 'weekly' : 'daily';
+  const modeSeg = `<div class="modeseg" role="tablist" aria-label="활동 보기">
+      <button type="button" role="tab" data-act="tmode" data-id="daily" aria-selected="${mode === 'daily'}"><b>일일 활동</b><span class="num" id="mode-daily-n">${lvl.done}/${lvl.total} 완료</span></button>
+      <button type="button" role="tab" data-act="tmode" data-id="weekly" aria-selected="${mode === 'weekly'}"><b>주간 활동</b><span class="num" id="mode-weekly-n">${wp.done}/${wp.total} 완료</span></button>
+    </div>`;
+  const body = mode === 'daily' ? `
+    <div class="daily">${daily}</div>
+    ${tallyHtml('daily', date, d)}
+  </section>
+
+  <div class="grid">
+    <section class="card">
+      <div class="card-head"><h2>오늘의 CS 문의</h2>
+        <div class="row"><span class="sub"><span class="num">${csCount(d, date)}/3</span> 작성</span>
+        <label class="toggle edit-only" title="CS 1개만 해도 가볍게 완료로 인정돼요"><input type="checkbox" data-act="busy" ${d.busy ? 'checked' : ''} ${ed && busyOk ? '' : 'disabled'}> 바쁜 날 모드 <span class="sub num">(이번 주 ${used + (d.busy ? 1 : 0)}/${limit})</span></label></div>
+      </div>
+      ${rubricDetails()}
+      ${eventsHtml(set, game)}
+      ${csCards || '<div class="empty">이 날의 문의가 없어요.</div>'}
+    </section>
+${sideHtml}
   </div>
 
   ${dailyActsHtml}
 
-  ${weeklyHtml}
+  ${manualHtml}` : `
+    ${tallyHtml('weekly', date, d)}
+  </section>
 
-  ${manualHtml}
+  <div class="grid">
+    <div class="stack">${weeklyHtml}</div>
+${sideHtml}
+  </div>`;
+
+  return `
+  <section class="stack">
+    <div class="day-head">
+      <h2>${longDate(date)}</h2>
+      <div class="row">
+        <div class="seg" role="group" aria-label="날짜 고르기">
+          <button type="button" data-act="date" data-date="${S.today}" aria-pressed="${date === S.today}">오늘</button>
+          <button type="button" data-act="date" data-date="${yday}" aria-pressed="${date === yday}">어제</button>
+        </div>
+        ${otherDates.length ? `<select style="width:auto" data-act-change="date" aria-label="고칠 수 있는 지난 기록"><option value="">지난 기록 고치기</option>${otherDates.map((x) => `<option value="${x}" ${x === date ? 'selected' : ''}>${md(x)}</option>`).join('')}</select>` : ''}
+        ${set ? `<span class="sub">CS 문의 ${esc(set.name)}</span>` : ''}
+      </div>
+    </div>
+    ${modeSeg}
+    ${banners.join('')}
+    ${body}
 
   <section class="card">
     <div class="card-head"><h2>메모</h2><span class="sub">공개돼요. 개인 정보는 쓰지 않아요.</span></div>
@@ -743,6 +760,58 @@ function viewToday() {
   ${ed ? `<div class="savebar edit-only">
     <p>${S.token ? '저장하면 GitHub에 바로 기록돼요. 다 쓰고 나면 [잠그기]를 눌러 주세요.' : '저장하려면 먼저 위의 [열쇠 넣기]로 보드 열쇠를 넣어 주세요.'}</p>
     <button class="btn primary" type="button" data-act="save" ${S.busy ? 'disabled' : ''}>${S.busy ? '저장하는 중…' : `${date === S.today ? '오늘' : md(date)} 기록 저장`}</button></div>` : ''}`;
+}
+
+// ───────── 활동량 집계 (한 일을 숫자로) ─────────
+// from~to(오늘까지) 기록을 센다. 지금 쓰는 중인 날짜는 저장 전 내용(draft)으로 센다.
+function tally(from, to, draft, draftDate) {
+  const out = { cs: 0, acts: {}, days: 0, busy: 0, recDays: 0 };
+  const end = to < S.today ? to : S.today;
+  for (let d = from; d <= end; d = addDays(d, 1)) {
+    const rec = draft && d === draftDate ? draft : S.records[d];
+    if (!rec) continue;
+    out.recDays++;
+    out.cs += csCount(rec, d);
+    for (const id of doneActs(rec)) out.acts[id] = (out.acts[id] || 0) + 1;
+    const l = dayLevel(d, rec);
+    if (l.total && l.done === l.total) out.days++;
+    if (rec.busy) out.busy++;
+  }
+  return out;
+}
+function fullWeeks() {
+  let n = 0;
+  for (let w = mondayOf(start()); w <= mondayOf(S.today); w = addDays(w, 7)) { const p = weekProgress(w); if (p.total && p.done === p.total) n++; }
+  return n;
+}
+function tallyHtml(mode, date, d) {
+  const mon = mondayOf(date), sun = addDays(mon, 6);
+  const wk = tally(mon, sun, d, date), all = tally(start(), S.today, d, date);
+  const elapsed = Math.max(1, diffDays(mon, (S.today < sun ? S.today : sun)) + 1);
+  const cell = (label, n, target, sub, done) => `<div class="tcell ${done ? 'done' : ''}">
+      <span class="label">${label}</span>
+      <b class="num">${n}${target != null ? `<small>/${target}</small>` : ''}</b>
+      ${target != null ? `<span class="tbar"><span style="width:${Math.min(100, Math.round((Number(n) / target) * 100))}%"></span></span>` : ''}
+      <span class="sub">${sub}</span></div>`;
+  let cells;
+  if (mode === 'daily') {
+    cells = [
+      cell('CS 답변', wk.cs, 21, `누적 <b class="num">${all.cs}</b>개`, wk.cs >= 21),
+      ...dailyMenus().map((m) => cell(esc(m.name), wk.acts[m.id] || 0, 7, `누적 <b class="num">${all.acts[m.id] || 0}</b>개`, (wk.acts[m.id] || 0) >= 7)),
+      cell('다 끝낸 날', wk.days, 7, `오늘까지 ${elapsed}일 중 · 연속 <b class="num">${currentStreak()}</b>일`, wk.days >= 7),
+    ];
+  } else {
+    const wp = weekProgress(mon, d, date);
+    cells = [
+      cell('이번 주 과제', wp.done, wp.total, `3개 모두 한 주 <b class="num">${fullWeeks()}</b>주`, wp.total && wp.done === wp.total),
+      ...weeklyMenus().map((m) => {
+        const when = weekDoneDate(m.id, mon, d, date);
+        return cell(esc(m.name), when ? `✓ ${md(when)}` : '아직', null, `누적 <b class="num">${all.acts[m.id] || 0}</b>개`, !!when);
+      }),
+    ];
+  }
+  return `<div class="tallybox" data-mode="${mode}"><div class="tally-head"><span class="label">${mode === 'daily' ? '이번 주 일일 활동' : '이번 주 주간 활동'}</span><span class="sub num">${md(mon)} – ${md(sun)} · 누적은 ${md(start())} 시작부터</span></div>
+    <div class="tally">${cells.join('')}</div></div>`;
 }
 
 // 일일 항목 버튼들 (입력 중에도 이 부분만 다시 그린다)
@@ -1017,6 +1086,22 @@ function chartHtml() {
       <text x="${x(i)}" y="${H - 8}" text-anchor="middle">${md(w.week)}</text>`).join('')}
   </svg></div>`;
 }
+// 활동 종류별로 이번 주 · 이번 달 · 전체(시작일부터) 몇 개 했는지
+function activityTable() {
+  const mon = mondayOf(S.today), m1 = S.today.slice(0, 8) + '01';
+  const cols = [['이번 주', tally(mon < start() ? start() : mon, S.today)], ['이번 달', tally(m1 < start() ? start() : m1, S.today)], ['전체', tally(start(), S.today)]];
+  const rows = [
+    ['CS 답변', '매일 3개', (x) => x.cs],
+    ...dailyMenus().map((m) => [m.name, '매일 1개', (x) => x.acts[m.id] || 0]),
+    ...weeklyMenus().map((m) => [m.name, '매주 1개', (x) => x.acts[m.id] || 0]),
+    ['다 끝낸 날', '일일 항목 전부', (x) => x.days],
+  ];
+  return `<section class="card"><div class="card-head"><h2>활동량</h2><span class="sub">${md(start())} 시작부터 · 연습 기간 제외</span></div>
+    <div class="ttable" role="table" aria-label="활동 종류별 횟수">
+      <div class="tr th" role="row"><span role="columnheader">활동</span>${cols.map(([n]) => `<span role="columnheader">${n}</span>`).join('')}</div>
+      ${rows.map(([name, goal, f]) => `<div class="tr" role="row"><span role="rowheader">${esc(name)} <small class="sub">${goal}</small></span>${cols.map(([, x]) => `<span class="num" role="cell">${f(x)}</span>`).join('')}</div>`).join('')}
+    </div></section>`;
+}
 function viewStats() {
   const items = S.settings.dailyItems.map((it) => ({ it, ...itemStreaks(it) }));
   const top = items.reduce((a, b) => (b.cur > (a?.cur ?? -1) ? b : a), null);
@@ -1048,6 +1133,7 @@ function viewStats() {
     <button class="linkbtn" type="button" data-act="mini" data-id="${key}" aria-expanded="${!!S.ui.mini[key]}">${S.ui.mini[key] ? '접기 ▴' : '펼치기 ▾'}</button>${S.ui.mini[key] ? body : ''}</div>`;
   const hbar = (lbl, n, max, txt) => `<div class="hbar"><span class="lbl">${esc(lbl)}</span><span class="t"><span style="width:${Math.round((n / max) * 100)}%"></span></span><span class="n num">${txt ?? n}</span></div>`;
   return `${bigNums()}
+  ${activityTable()}
   <section class="card"><div class="card-head"><h2>잔디</h2><span class="sub">최근 16주</span></div>${grassHtml()}</section>
   <section class="card"><div class="card-head"><h2>CS 점수 추이</h2><span class="sub">주별 AI 코치 평균 (5점 만점)</span></div>${chartHtml()}</section>
   <div class="minis">
@@ -1122,11 +1208,13 @@ function viewSettings() {
 const GUIDE = {
   today: { name: '오늘', blocks: [
     ['head', '머리 영역', '연속 기록 · 열쇠 · 잠그기', 'span3', '연속 기록은 일일 항목을 모두 끝낸 날이 며칠째 이어지는지예요. 저장하려면 PC에서 [열쇠 넣기]로 보드 열쇠를 붙여 넣어요. 공용 컴퓨터에서는 다 쓴 뒤 꼭 [잠그기]를 눌러요.'],
+    ['mode', '일일 활동 · 주간 활동', '날짜 아래 전환 버튼', 'span3', '처음에는 일일 활동이 보여요. [주간 활동]을 누르면 일일 활동이 숨고 이번 주 과제가 보여요. 버튼 옆 숫자는 오늘 끝낸 일일 항목 수와 이번 주 끝낸 주간 과제 수예요.'],
+    ['tally', '이번 주 활동량', '숫자 칸', 'span3', '이번 주(월~일)에 한 일을 숫자로 보여 줘요. 일일 활동에서는 CS 답변 n/21, 공지 n/7, 다 끝낸 날 n/7, 주간 활동에서는 과제마다 끝낸 날짜와 누적 개수가 나와요. 글을 쓰는 동안 바로 바뀌어요.'],
     ['daily', '일일 항목', '날짜 고르기 · CS 문의 · 공지 작성', 'span3', '매일 할 일은 CS 문의 3개와 공지 작성 1개예요. 쓰면 자동으로 체크돼요. 연습 기간에는 안내 줄에서 시작일을 바꿀 수 있어요(설정 탭에서도 가능). 새 기록은 오늘과 어제만 쓸 수 있고, 어제 기록은 "늦은 기록"으로 표시돼요.'],
     ['cs', '오늘의 CS 문의 · 바쁜 날 모드', '가상 게임 · 이벤트 · 지난 답변', 'span2', '요일마다 가상 게임 하나의 문의 3개가 와요. 이벤트 칸과 상황 정보를 읽고 답변을 써요. 아래에는 지난주 같은 문의에 쓴 내 답변과 AI 코치 피드백이 보여요. 바쁜 날 모드를 켜면 CS 1개만 해도 그날을 가볍게 완료로 인정해요 (한 주 2번까지).'],
     ['side', '이번 주 게임 · 메인 미션', '게임 바꾸기 · 추가', '', '공지·패치노트·커뮤니티에 쓰는 실제 게임은 매주 월요일 바뀌어요. [이번 주 게임 바꾸기 · 게임 추가]를 열면 이번 주 게임만 바꾸거나 새 게임을 넣을 수 있어요. 미션은 마감이 가까운 순서로 보여요.'],
     ['notice', '오늘의 공지 작성', '매일', 'span3', '이번 주 게임으로 연습 공지를 하나 써요. 제목 앞에 [연습]이 붙어요. 연결된 미션이 자동으로 +1 돼요.'],
-    ['weekly', '이번 주 과제', '패치노트 · 커뮤니티 · 엑셀', 'span3', '월~일 안에 하나씩, 편한 날에 해요. 끝낸 과제에는 ✓와 날짜가 붙고, 같은 주에는 다시 하지 않아요. 고른 날짜의 기록에 함께 저장돼요.'],
+    ['weekly', '이번 주 과제 (주간 활동)', '패치노트 · 커뮤니티 · 엑셀', 'span3', '[주간 활동]을 누르면 보여요. 월~일 안에 하나씩, 편한 날에 해요. 끝낸 과제에는 ✓와 날짜가 붙고, 같은 주에는 다시 하지 않아요. 고른 날짜의 기록에 함께 저장돼요.'],
     ['save', '저장', '맨 아래', '', '[기록 저장]을 누르면 GitHub에 바로 기록돼요. 같은 날 기록은 그 주 일요일 채점 전까지 다시 저장해서 고칠 수 있어요.'],
   ] },
   missions: { name: '미션', blocks: [
@@ -1145,6 +1233,7 @@ const GUIDE = {
   ] },
   stats: { name: '통계', blocks: [
     ['big', '큰 숫자 3개', '연속 기록 · 달성률 · CS 점수', 'span3', '연속 기록, 이번 달 달성률, CS 평균 점수 변화(첫 주 → 최근 주)예요.'],
+    ['table', '활동량', '이번 주 · 이번 달 · 전체', 'span3', 'CS 답변, 공지, 패치노트, 커뮤니티, 엑셀, 다 끝낸 날을 이번 주 · 이번 달 · 전체(시작일부터)로 세어 표로 보여 줘요.'],
     ['grass', '잔디', '하루 한 칸', 'span2', '색이 진할수록 일일 항목을 많이 한 날이에요. 분홍 칸은 바쁜 날 모드로 가볍게 완료한 날이에요. 칸을 누르면 그날 기록으로 가요.'],
     ['chart', 'CS 점수 추이', '주별 평균', '', '매주 일요일 23:50 AI 코치 채점이 끝나면 점이 하나씩 생겨요.'],
     ['minis', '작은 카드 4개', '항목별 연속일 · 주간 과제 · 게임별 활동 · 엑셀 원인 찾기', 'span3', '핵심 숫자가 보이고, [펼치기]를 누르면 자세한 막대그래프가 나와요. 주간 과제는 주마다 3개 중 몇 개 끝냈는지, 엑셀 원인 찾기는 일요일 채점에서 숨은 원인을 찾았다고 본 보고서 수예요.'],
@@ -1256,6 +1345,12 @@ function softRefreshToday() {
     const date = S.date || S.today;
     const box = document.querySelector('.daily');
     if (box) box.innerHTML = dailyHtml(S.draft, date, canEdit(date) && !isNarrow());
+    const tb = document.querySelector('.tallybox');
+    if (tb) tb.outerHTML = tallyHtml(tb.dataset.mode, date, S.draft);
+    const l = dayLevel(date, S.draft), w = weekProgress(mondayOf(date), S.draft, date);
+    const dn = document.getElementById('mode-daily-n'), wn = document.getElementById('mode-weekly-n');
+    if (dn) dn.textContent = `${l.done}/${l.total} 완료`;
+    if (wn) wn.textContent = `${w.done}/${w.total} 완료`;
   }, 250);
 }
 document.addEventListener('change', (e) => {
@@ -1300,6 +1395,7 @@ document.addEventListener('click', async (e) => {
       d.busy = !d.busy; saveDraftSoon(); render(); break;
     }
     case 'wmenu': S.ui.wmenu = id; render(); break;
+    case 'tmode': S.ui.tmode = id; render(); break; // 새로 열면 항상 일일 활동부터
     case 'excel-tpl': {
       if (!canEdit(S.date)) return;
       const ent = excelEntry(S.date), task = ent && S.excelCache[ent.week];

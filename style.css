@@ -118,10 +118,38 @@ a { color: var(--sky-deep); }
 .seg { align-self: flex-start; display: inline-flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--surface); }
 .seg button { font: inherit; font-size: 13px; border: 0; background: transparent; color: var(--muted); padding: 6px 12px; cursor: pointer; }
 .seg button[aria-pressed="true"] { background: var(--sky-soft); color: var(--sky-deep); font-weight: 600; }
+/* 일일 활동 / 주간 활동 전환 */
+.modeseg { display: grid; grid-template-columns: 1fr 1fr; gap: 0; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; background: var(--surface); }
+.modeseg button { font: inherit; border: 0; background: transparent; color: var(--muted); padding: 12px 16px; cursor: pointer; display: flex; align-items: baseline; justify-content: center; gap: 10px; border-bottom: 3px solid transparent; }
+.modeseg button + button { border-left: 1px solid var(--line); }
+.modeseg button b { font-family: var(--font-display); font-weight: 400; font-size: 18px; color: var(--ink); }
+.modeseg button .num { font-size: 13px; }
+.modeseg button[aria-selected="true"] { background: var(--sky-soft); border-bottom-color: var(--sky-deep); }
+.modeseg button[aria-selected="true"] b, .modeseg button[aria-selected="true"] .num { color: var(--sky-deep); }
+.modeseg button:focus-visible { outline: 2px solid var(--sky-deep); outline-offset: -2px; }
+/* 활동량 표 (통계) */
+.ttable { display: flex; flex-direction: column; }
+.ttable .tr { display: grid; grid-template-columns: minmax(0, 2fr) repeat(3, minmax(0, 1fr)); gap: 8px; padding: 9px 4px; border-top: 1px solid var(--line); align-items: baseline; }
+.ttable .tr.th { border-top: 0; font-size: 12px; font-weight: 600; color: var(--muted); }
+.ttable .tr span:not(:first-child) { text-align: right; }
+.ttable .tr .num { font-size: 17px; font-variant-numeric: tabular-nums; }
+.ttable small { font-size: 11.5px; margin-left: 4px; }
+/* 이번 주 활동량 */
+.tallybox { display: flex; flex-direction: column; gap: 8px; }
+.tally-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.tally { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
+.tcell { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.tcell.done { border-color: var(--sky); }
+.tcell b.num { font-family: var(--font-display); font-weight: 400; font-size: 28px; line-height: 1.15; font-variant-numeric: tabular-nums; }
+.tcell b.num small { font-size: 16px; color: var(--muted); margin-left: 2px; }
+.tcell .sub b.num { font-family: inherit; font-size: inherit; color: var(--ink); }
+.tbar { display: block; height: 6px; border-radius: 99px; background: var(--g0); overflow: hidden; }
+.tbar span { display: block; height: 100%; background: var(--sky-deep); border-radius: 99px; }
+.tcell.done .tbar span { background: var(--ok); }
 .banner { padding: 10px 14px; border-radius: 10px; font-size: 13px; background: var(--warn-soft); }
 .banner.info { background: var(--sky-soft); }
 .banner.pink { background: var(--blush-soft); }
-.daily { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.daily { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
 .daily-item {
   display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-radius: 12px; text-align: left;
   background: var(--surface); border: 1px solid var(--line); min-width: 0; font: inherit; color: inherit; cursor: pointer;
