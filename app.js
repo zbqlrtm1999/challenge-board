@@ -558,7 +558,7 @@ function eventsHtml(set, game) {
     ${evs.length ? `<div class="events">${evs.map((e) => `<div class="event"><span class="event-kind">${esc(e.kind || '이벤트')}</span>
       <div class="event-top"><strong>${esc(e.name)}</strong><span class="when">${esc(e.period || '')}</span></div>
       <p>${esc(e.rule || '')}${e.key ? ` <span class="key">${esc(e.key)}</span>` : ''}</p></div>`).join('')}</div>` : ''}
-    ${pol.length ? `<details class="policy"><summary>운영 정책 요약 보기</summary><ul>${pol.map((p) => `<li>${esc(p)}</li>`).join('')}</ul></details>` : ''}
+    ${pol.length ? `<details class="policy" ${S.ui.polClosed ? '' : 'open'}><summary data-act="pol-toggle">운영 정책 요약</summary><ul>${pol.map((p) => `<li>${esc(p)}</li>`).join('')}</ul></details>` : ''}
   </div>`;
 }
 function dday(deadline) {
@@ -1491,6 +1491,7 @@ document.addEventListener('click', async (e) => {
     }
     // 오늘 화면에서 바로 바꾸는 설정
     case 'wk-toggle': S.ui.wkOpen = !el.closest('details').open; break;
+    case 'pol-toggle': S.ui.polClosed = el.closest('details').open; break; // 처음엔 펼침, 접으면 접힌 채로 유지
     case 'start-save': {
       const v = $('#start-quick')?.value || '';
       if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) { toast('시작일을 골라 주세요.'); return; }
