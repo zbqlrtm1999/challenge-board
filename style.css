@@ -274,7 +274,7 @@ textarea[readonly] { background: var(--bg); }
 .legend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -2px; margin-right: 4px; }
 .chart svg { width: 100%; height: auto; max-height: 260px; display: block; }
 .chart text { fill: var(--muted); font-size: 11px; font-family: var(--font-body); }
-.minis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; align-items: start; }
+.minis { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: start; }
 .mini { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .mini b { font-family: var(--font-display); font-weight: 400; font-size: 20px; }
 .hbar { display: grid; grid-template-columns: minmax(0, 120px) minmax(0, 1fr) 32px; gap: 8px; align-items: center; font-size: 12.5px; }

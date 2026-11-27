@@ -8,15 +8,17 @@
   "branch": "main",
   "dailyItems": [
     {
-      "id": "jobs",
-      "name": "공고 확인",
-      "note": "공고판에서 새 공고 보기"
+      "id": "cs",
+      "type": "cs",
+      "name": "CS 문의",
+      "note": "가상 게임 문의 3개에 답변"
     },
     {
-      "id": "job",
-      "name": "직무능력준비",
-      "type": "job",
-      "note": "CS 3개 + 활동 1개"
+      "id": "notice",
+      "type": "menu",
+      "menu": "notice",
+      "name": "공지 작성",
+      "note": "연습 공지 1개"
     }
   ],
   "gameRotation": [

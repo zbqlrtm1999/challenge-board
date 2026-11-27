@@ -1,24 +1,30 @@
 {
   "menus": [
     {
+      "id": "notice",
+      "name": "공지 작성",
+      "cycle": "daily",
+      "hint": "이번 주 게임으로 점검·오류·이벤트 공지를 하나 써요. 실제 공지로 오해받지 않게 제목 앞에 [연습]이 붙어요.",
+      "prefix": "[연습] ",
+      "fields": [{ "id": "title", "label": "공지 제목 (앞에 [연습]이 붙어요)", "placeholder": "정기 점검 연장 안내" }],
+      "template": "대상:\n일시:\n내용:\n보상 (있으면):\n문의 안내:"
+    },
+    {
       "id": "patch",
       "name": "패치노트 분석",
+      "cycle": "weekly",
+      "hint": "이번 주 게임의 최신 패치노트를 읽고 운영 관점에서 정리해요.",
       "fields": [{ "id": "url", "label": "읽은 패치노트 주소", "placeholder": "https://" }],
       "template": "패치 버전:\n주요 변경 3가지:\n1.\n2.\n3.\n왜 바꿨을까 (운영 관점):\n예상 유저 반응:"
     },
     {
       "id": "community",
       "name": "커뮤니티 보고서",
+      "cycle": "weekly",
+      "hint": "이번 주 게임의 커뮤니티를 둘러보고 주간 동향을 보고해요.",
       "fields": [{ "id": "source", "label": "살펴본 커뮤니티", "placeholder": "공식 포럼, 인벤, 갤러리 등" }],
       "template": "[주간 커뮤니티 동향] 기간:\n이번 주 이슈 TOP 3:\n1.\n2.\n3.\n유저 반응 (긍정 / 부정):\n운영팀에 제안:"
     },
-    {
-      "id": "notice",
-      "name": "공지 작성",
-      "prefix": "[연습] ",
-      "fields": [{ "id": "title", "label": "공지 제목 (앞에 [연습]이 붙어요)", "placeholder": "정기 점검 연장 안내" }],
-      "template": "대상:\n일시:\n내용:\n보상 (있으면):\n문의 안내:"
-    },
-    { "id": "excel", "name": "엑셀·데이터", "type": "excel", "fields": [] }
+    { "id": "excel", "name": "엑셀·데이터", "type": "excel", "cycle": "weekly", "fields": [] }
   ]
 }

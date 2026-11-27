@@ -6,7 +6,7 @@
 
 1. **개인정보를 쓰지 않는다.** 이름·연락처·주소·학번 같은 것은 문의글, 예시, 피드백, 문서, 커밋 메시지 어디에도 넣지 않는다. 가상 유저는 `U01234`처럼 번호로만 쓴다. 저장소는 공개다.
 2. **보드 열쇠(GitHub 토큰)를 파일에 쓰지 않는다.** 열쇠는 사용자의 브라우저 sessionStorage에만 있다.
-3. **CS 문의는 가상 게임으로만 만든다.** 실제 회사·게임 이름을 CS 문의에 넣지 않는다. 실제 게임은 "오늘의 활동"(패치노트 분석 등)에서만 쓴다.
+3. **CS 문의는 가상 게임으로만 만든다.** 실제 회사·게임 이름을 CS 문의에 넣지 않는다. 실제 게임은 공지 작성·패치노트 분석·커뮤니티 보고서에서만 쓴다.
 4. **공지 작성 결과물에는 `[연습]`을 붙인다.** 실제 회사 공지로 오해받지 않게 하기 위해서다(보드가 제목 앞에 자동으로 붙인다).
 5. **사용자가 쓴 글(`data/records.json`의 답변·활동)은 고치지 않는다.** AI는 `data/feedback.json`에만 쓴다.
 6. **사용자가 요청한 범위만 한다.** 파일 구조를 바꾸거나 새 기능을 넣기 전에 사용자에게 확인한다.
@@ -24,7 +24,7 @@ data/excel/index.json, <주>.json  주간 엑셀 과제 정보
 records/<날짜>.md                 사람이 읽는 날짜별 기록 (보드가 저장할 때 함께 생성)
 excel/<주>_엑셀과제.xlsx          주간 엑셀 과제 파일
 packs/<팩>/pack.json              직무 팩: 채점 기준, 운영 정책, 가상 게임 7개, 문의 세트
-packs/<팩>/activities.json        오늘의 활동 메뉴와 작성 틀
+packs/<팩>/activities.json        활동 메뉴, 주기(cycle: daily/weekly), 작성 틀
 packs/<팩>/real-games.json        로테이션에 쓰는 실제 게임 목록
 scripts/make_excel.py             엑셀 과제 생성기 (매주 월요일 0시 GitHub Actions)
 .github/workflows/weekly-excel.yml 위 생성기를 돌리는 자동 작업
@@ -34,10 +34,11 @@ docs/                             안내 문서 (이 폴더)
 ## 동작 규칙 요약
 
 - **날짜는 모두 한국 시간.** 챌린지 시작일(`settings.startDate`) 전은 연습 기간이라 통계에서 빠진다.
-- **일일 항목:** 설정의 `dailyItems`. `type: "job"`인 직무능력준비는 자동 판정: CS 3개 + 활동 1개면 완료. 바쁜 날 모드(`busy`)면 CS 1개로 "가볍게 완료"(한 주 `busyLimitPerWeek`번까지).
+- **일일 항목:** 설정의 `dailyItems`. 고정 두 개는 자동 판정: `type: "cs"`(CS 문의 3개 쓰면 완료), `type: "menu"`(그 메뉴, 기본은 공지 작성을 쓰면 완료). `type`이 없는 항목은 직접 체크(`daily[id]`). 바쁜 날 모드(`busy`)면 CS 1개만 써도 CS와 공지를 "가볍게 완료"로 본다(한 주 `busyLimitPerWeek`번까지). 예전 설정(공고 확인, `type: "job"`)은 보드가 불러올 때 새 고정 항목으로 바꾼다(`fixDailyItems`).
+- **주간 과제:** `activities.json`에서 `cycle: "weekly"`인 메뉴(패치노트 분석, 커뮤니티 보고서, 엑셀·데이터). 그 주 월~일 중 어느 날 기록에든 한 번 있으면 그 주 완료. 같은 주에 두 번 하지 않도록 보드가 막는다. 연속 기록·잔디·달성률은 일일 항목만 센다.
 - **CS 문의:** 요일(월=1…일=7)마다 가상 게임 1개, 문의 3개. 같은 요일에는 같은 문의가 매주 반복된다. `pack.json`의 원래 세트(기본 · 불만·항의 · 까다로운 상황)는 **섞어서** 쓴다: 하루 3문의 = 원래 세트마다 하나씩. k번째 달(시작일이 속한 달 = 0)에는 원래 세트 j의 그 요일 문의 중 `(k + j) % 3`번째를 쓰므로, 세트 수만큼 달이 지나면 모든 문의를 한 번씩 쓰고 처음으로 돌아간다(`app.js`의 `mixedSets`). 이벤트 칸에는 세 세트의 이벤트가 함께 보인다. 기록의 `setId`는 `mix1`, `mix2`…
 - **실제 게임 로테이션:** `gameRotation` 순서대로 시작일 주 월요일부터 매주 바뀐다.
-- **미션 진행:** 저장 값이 아니라 기록에서 계산한다. `menu`가 있는 미션은 그 메뉴 활동을 한 날 수, 없는 미션은 기록의 `missionManual[미션id]`가 있는 날 수.
+- **미션 진행:** 저장 값이 아니라 기록에서 계산한다. `menu`가 있는 미션은 기록의 `acts[menu]`를 다 쓴 날 수, 없는 미션은 기록의 `missionManual[미션id]`가 있는 날 수.
 - **수정 제한:** 새 기록은 오늘·어제만. 이미 있는 기록은 `feedback.json`에 그 날짜가 생기기 전까지 고칠 수 있다(채점되면 잠김). "다음엔 이렇게"(`reflect`)는 채점 뒤에도 쓸 수 있다.
 - **휴대폰은 보기 전용**(화면 폭 640px 이하에서 작성 칸 숨김).
 
@@ -49,10 +50,13 @@ docs/                             안내 문서 (이 폴더)
   "2026-11-16": {
     "date": "2026-11-16", "savedAt": "ISO 시각", "late": false, "busy": false,
     "setId": "set1", "csGame": "starlight",
-    "daily": { "jobs": true },
+    "daily": { "직접 추가한 항목 id": true },
     "cs": { "answers": { "set1-1-1": "답변 글", "set1-1-2": "…" } },
-    "activity": { "menu": "patch", "game": "lol", "fields": { "url": "https://…" }, "body": "본문",
-                  "excel": { "week": "2026-11-16", "report": "[한 줄 요약] …\n[이상 징후] …\n[숫자 근거] …\n[원인 추정] …\n[다음 조치] …" } },
+    "acts": {
+      "notice": { "game": "lol", "fields": { "title": "점검 연장 안내" }, "body": "본문" },
+      "patch": { "game": "lol", "fields": { "url": "https://…" }, "body": "본문" },
+      "excel": { "week": "2026-11-16", "report": "[한 줄 요약] …\n[이상 징후] …\n[숫자 근거] …\n[원인 추정] …\n[다음 조치] …" }
+    },
     "missionManual": { "m-abc": "메모" },
     "memo": "한 줄 메모",
     "reflect": { "set1-1-1": "다음엔 이렇게…" }
@@ -69,13 +73,15 @@ docs/                             안내 문서 (이 폴더)
       "set1-1-1": { "score": 4, "checks": { "greet": true, "empathy": true, "cause": true, "solution": false, "closing": true },
                     "violation": false, "comment": "고칠 점 한 줄", "change": "지난 답변과 달라진 점 한 줄 (이전 답변이 없으면 생략)" }
     },
-    "activity": { "good": "잘한 점 한 줄", "fix": "고칠 점 한 줄", "change": "같은 메뉴 직전 결과물과 달라진 점 (없으면 생략)" },
-    "excel": { "found": true, "good": "…", "fix": "…" }
+    "acts": {
+      "notice": { "good": "잘한 점 한 줄", "fix": "고칠 점 한 줄", "change": "같은 메뉴 직전 결과물과 달라진 점 (없으면 생략)" },
+      "excel": { "found": true, "good": "…", "fix": "…" }
+    }
   }
 }
 ```
 `score` = 체크된 항목 수 − (위반이면 `pack.violation.penalty`), 최소 0.
-`excel.found` = 보고서가 숨은 원인(날짜와 핵심 패턴)을 짚었는지. 통계 탭 "엑셀 원인 찾기" 카드가 이 값을 센다.
+`acts.excel.found` = 보고서가 숨은 원인(날짜와 핵심 패턴)을 짚었는지. 통계 탭 "엑셀 원인 찾기" 카드가 이 값을 센다.
 
 ## 일요일 AI 코치 채점 (매주 일요일 23:50 한국 시간)
 
@@ -85,8 +91,8 @@ docs/                             안내 문서 (이 폴더)
 2. `data/records.json`에서 **날짜가 오늘(한국 시간) 이하이고 `data/feedback.json`에 아직 없는 날짜**를 모두 고른다. 시작일 전(연습 기간)도 채점한다.
 3. 날짜마다:
    - **CS 답변:** `cs.answers`의 문의 id로 `packs/<팩>/pack.json`에서 문의(`text`, `facts`), 그 세트의 그 게임 `events`, `commonPolicy`와 게임 `policy`를 찾는다. `rubric` 5항목을 답변에 "들어 있는지"만 보고 true/false로 판정한다(잘 썼는지가 아니라 있는지). 정책에 없는 약속이나 개인정보 요청이 있으면 `violation: true`. `comment`는 가장 중요한 고칠 점 한 줄. 같은 문의에 대한 직전 답변이 있으면 `change`에 달라진 점 한 줄.
-   - **활동 (`activity.menu`가 patch/community/notice):** 점수 없이 `good`, `fix` 한 줄씩. 같은 메뉴의 직전 결과물이 있으면 `change`.
-   - **엑셀 (`menu`가 excel):** 열린 과제(숫자 문제 없음)라 사용자의 `report` 하나만 본다. `data/excel/<주>.json`의 `reveal`(base64 JSON: 숨은 원인 `cause`, 근거 수치 `evidence`)과 비교한다. 근거 수치가 맞는지 의심되면 `excel/<주>_엑셀과제.xlsx`의 '데이터' 시트에서 직접 계산해 확인한다. 보는 순서: ① 숨은 원인을 짚었는지 → `excel.found` true/false ② 숫자 근거가 데이터와 맞고 평소와 비교했는지 ③ 확인한 사실과 추측을 나눴는지 ④ 다음 조치가 구체적인지. 원인을 못 찾았어도 근거가 탄탄하면 `good`에서 칭찬한다. `fix`는 가장 중요한 한 가지.
+   - **활동 (`acts`의 notice/patch/community):** 메뉴마다 점수 없이 `good`, `fix` 한 줄씩 `feedback.acts[메뉴]`에 쓴다. 같은 메뉴의 직전 결과물이 있으면 `change`.
+   - **엑셀 (`acts.excel`):** 열린 과제(숫자 문제 없음)라 사용자의 `report` 하나만 본다. `data/excel/<주>.json`의 `reveal`(base64 JSON: 숨은 원인 `cause`, 근거 수치 `evidence`)과 비교한다. 근거 수치가 맞는지 의심되면 `excel/<주>_엑셀과제.xlsx`의 '데이터' 시트에서 직접 계산해 확인한다. 보는 순서: ① 숨은 원인을 짚었는지 → `acts.excel.found` true/false ② 숫자 근거가 데이터와 맞고 평소와 비교했는지 ③ 확인한 사실과 추측을 나눴는지 ④ 다음 조치가 구체적인지. 원인을 못 찾았어도 근거가 탄탄하면 `good`에서 칭찬한다. `fix`는 가장 중요한 한 가지.
    - 예전 형식 기록(`excel.answers`·`reason`이 있는 것)은 `reason`과 `report`를 합쳐 같은 방식으로 본다.
 4. `data/feedback.json`에 날짜별로 추가한다(이미 있는 날짜는 건드리지 않는다). `records.json`은 고치지 않는다.
 5. 커밋 메시지 `AI 코치 채점: <첫 날짜>~<마지막 날짜>`로 커밋하고 push. 채점할 날짜가 없으면 아무것도 하지 않는다.

@@ -46,9 +46,10 @@ const DEFAULT_SETTINGS = {
   startDate: '2026-11-16',
   pack: 'game-ops',
   owner: 'zbqlrtm1999', repo: 'challenge-board', branch: 'main',
+  // 고정 항목: type 'cs'(CS 문의 3개), type 'menu'(매일 하는 활동 메뉴). 그 밖의 항목은 직접 체크.
   dailyItems: [
-    { id: 'jobs', name: '공고 확인', note: '공고판에서 새 공고 보기' },
-    { id: 'job', name: '직무능력준비', type: 'job', note: 'CS 3개 + 활동 1개' },
+    { id: 'cs', type: 'cs', name: 'CS 문의', note: '가상 게임 문의 3개에 답변' },
+    { id: 'notice', type: 'menu', menu: 'notice', name: '공지 작성', note: '연습 공지 1개' },
   ],
   gameRotation: [], extraGames: [], busyLimitPerWeek: 2,
 };
@@ -57,7 +58,7 @@ const S = {
   records: {}, feedback: {}, excelIndex: { weeks: [] }, excelCache: {},
   token: null, dir: null, today: todayKST(), date: null, view: 'today',
   draft: null, draftDate: null, draftRestored: false, form: null, busy: false,
-  ui: { keyOpen: false, rview: 'cs', rset: null, qopen: null, open: {}, cmp: [], cmpShow: null,
+  ui: { keyOpen: false, wmenu: null, rview: 'cs', rset: null, qopen: null, open: {}, cmp: [], cmpShow: null,
         mfilter: 'all', mopen: null, mform: null, mcmp: [], mcmpShow: null, mini: {}, gscreen: 'today', gblock: null, refl: {} },
 };
 
@@ -245,6 +246,9 @@ function rotationGame(date) {
 }
 const menus = () => S.acts.menus || [];
 const menuById = (id) => menus().find((m) => m.id === id);
+// 메뉴마다 cycle이 있다: 'daily'(매일, 일일 항목) / 'weekly'(그 주 월~일 안에 한 번)
+const weeklyMenus = () => menus().filter((m) => m.cycle === 'weekly');
+const dailyMenus = () => menus().filter((m) => m.cycle !== 'weekly');
 
 // ───────── 기록 계산 ─────────
 const sortedDates = () => Object.keys(S.records).sort();
@@ -254,31 +258,43 @@ function canEdit(date) {
   return date === S.today || date === addDays(S.today, -1) || !!S.records[date];
 }
 function blankRecord(date) {
-  const rot = rotationGame(date);
-  return { date, daily: {}, busy: false, cs: { answers: {} }, activity: { menu: null, game: rot?.game?.id || '', fields: {}, body: '' }, missionManual: {}, memo: '', reflect: {} };
+  return { date, daily: {}, busy: false, cs: { answers: {} }, acts: {}, missionManual: {}, memo: '', reflect: {} };
+}
+function blankAct(menuId, date) {
+  if (menuById(menuId)?.type === 'excel') return { week: excelEntry(date)?.week || null, report: '' };
+  return { game: rotationGame(date)?.game?.id || '', fields: {}, body: menuById(menuId)?.template || '' };
 }
 function csCount(rec, date) {
   if (!rec?.cs?.answers) return 0;
   return inquiriesFor(date).filter((q) => (rec.cs.answers[q.id] || '').trim()).length;
 }
-function activityDone(rec) {
-  const a = rec?.activity;
-  if (!a?.menu) return false;
-  if (a.menu === 'excel') return excelWritten(a.excel?.report);
-  const tpl = (menuById(a.menu)?.template || '').trim();
+// 활동 하나(acts[메뉴])를 다 썼는지. 작성 틀 그대로면 안 쓴 것으로 본다.
+function actDone(rec, menuId) {
+  const a = rec?.acts?.[menuId];
+  if (!a) return false;
+  if (menuById(menuId)?.type === 'excel') return excelWritten(a.report);
+  const tpl = (menuById(menuId)?.template || '').trim();
   const body = (a.body || '').trim();
   return !!body && body !== tpl;
 }
-function jobState(rec, date) {
-  const cs = csCount(rec, date), act = activityDone(rec);
-  if (rec?.busy) return cs >= 1 ? 'light' : 'none';
-  if (cs >= 3 && act) return 'done';
-  return cs > 0 || act ? 'half' : 'none';
+const doneActs = (rec) => Object.keys(rec?.acts || {}).filter((id) => actDone(rec, id));
+// 바쁜 날 모드: CS 1개만 해도 CS와 매일 활동을 "가볍게 완료"로 본다
+function itemState(item, rec, date) {
+  if (!rec) return 'none';
+  const cs = csCount(rec, date), busyOk = !!rec.busy && cs >= 1;
+  if (item.type === 'cs') return cs >= 3 ? 'done' : busyOk ? 'light' : cs > 0 ? 'half' : 'none';
+  if (item.type === 'menu') return actDone(rec, item.menu) ? 'done' : busyOk ? 'light' : 'none';
+  return rec.daily?.[item.id] ? 'done' : 'none';
 }
-function itemDone(item, rec, date) {
-  if (!rec) return false;
-  if (item.type === 'job') return ['done', 'light'].includes(jobState(rec, date));
-  return !!rec.daily?.[item.id];
+const itemDone = (item, rec, date) => ['done', 'light'].includes(itemState(item, rec, date));
+// 주간 과제: 그 주(월~일)에 이 메뉴를 끝낸 날짜. 오늘 쓰는 중인 내용(draft)도 함께 본다.
+function weekDoneDate(menuId, mon, draft, draftDate) {
+  if (draft && draftDate && mondayOf(draftDate) === mon && actDone(draft, menuId)) return draftDate;
+  return sortedDates().find((d) => d !== draftDate && mondayOf(d) === mon && actDone(S.records[d], menuId)) || null;
+}
+function weekProgress(mon, draft, draftDate) {
+  const list = weeklyMenus();
+  return { done: list.filter((m) => weekDoneDate(m.id, mon, draft, draftDate)).length, total: list.length };
 }
 function dayLevel(date, rec = S.records[date]) {
   const items = S.settings.dailyItems;
@@ -311,7 +327,7 @@ function missionEntries(m) {
   for (const d of sortedDates()) {
     if (d < (m.createdAt || start())) continue;
     const r = S.records[d];
-    if (m.menu && r.activity?.menu === m.menu && activityDone(r)) out.push({ date: d, rec: r });
+    if (m.menu && actDone(r, m.menu)) out.push({ date: d, rec: r, menu: m.menu, act: r.acts[m.menu] });
     if (!m.menu && r.missionManual && Object.prototype.hasOwnProperty.call(r.missionManual, m.id)) out.push({ date: d, rec: r, note: r.missionManual[m.id] });
   }
   return out;
@@ -381,7 +397,8 @@ function draftFor(date) {
   if (parsed && canEdit(date)) { S.draft = { ...base, ...parsed }; S.draftRestored = true; }
   else S.draft = base;
   S.draft.cs ||= { answers: {} }; S.draft.cs.answers ||= {};
-  S.draft.activity ||= { menu: null, fields: {}, body: '' }; S.draft.activity.fields ||= {};
+  delete S.draft.activity; // 예전 형식(하루에 활동 하나)은 쓰지 않는다
+  S.draft.acts ||= {};
   S.draft.daily ||= {}; S.draft.missionManual ||= {};
   return S.draft;
 }
@@ -404,15 +421,15 @@ function toMarkdown(rec) {
     if (!a) continue;
     L.push(`### ${q.type}: ${q.text}`, '', a, '');
   }
-  const act = rec.activity;
-  if (act?.menu && activityDone(rec)) {
-    const m = menuById(act.menu), g = gameById(act.game);
-    L.push(`## 📚 오늘의 활동: ${m?.name || act.menu}${g ? ' · ' + g.name : ''}`, '');
-    for (const f of m?.fields || []) if ((act.fields?.[f.id] || '').trim()) L.push(`- ${f.label}: ${act.fields[f.id]}`);
-    if (act.menu === 'excel' && act.excel) {
-      L.push(`- 과제 주차: ${act.excel.week}`);
-      if (act.excel.report) L.push('', '### 보고서', act.excel.report);
-    } else L.push('', act.body || '');
+  for (const id of doneActs(rec)) {
+    const act = rec.acts[id], m = menuById(id), g = gameById(act.game);
+    L.push(`## 📚 ${m?.cycle === 'weekly' ? '주간 과제' : '매일'}: ${m?.name || id}${g ? ' · ' + g.name : ''}`, '');
+    if (m?.type === 'excel') {
+      L.push(`- 과제 주차: ${act.week}`, '', act.report || '');
+    } else {
+      for (const f of m?.fields || []) if ((act.fields?.[f.id] || '').trim()) L.push(`- ${f.label}: ${act.fields[f.id]}`);
+      L.push('', act.body || '');
+    }
     L.push('');
   }
   const mm = Object.entries(rec.missionManual || {});
@@ -445,7 +462,7 @@ async function saveToday() {
   rec.setId = setFor(date)?.id || null;
   rec.csGame = gameFor(date)?.id || null;
   for (const [k, v] of Object.entries(rec.cs.answers)) if (!String(v).trim()) delete rec.cs.answers[k];
-  if (rec.activity && !activityDone(rec)) rec.activity = { menu: null, game: rec.activity.game, fields: {}, body: '' };
+  for (const id of Object.keys(rec.acts || {})) if (!actDone(rec, id)) delete rec.acts[id];
   S.busy = true; render();
   try {
     const latest = await freshRecords();
@@ -530,7 +547,7 @@ function rubricDetails() {
   return `<details class="policy" style="border:0;padding:0"><summary>ℹ️ 채점 기준</summary>
     <ul>${rub.map((r) => `<li><b>${esc(r.name)}</b>: ${esc(r.desc)}</li>`).join('')}
     <li><b>${esc(S.pack?.violation?.name || '정책 위반')}</b>: ${esc(S.pack?.violation?.desc || '')} (−${S.pack?.violation?.penalty ?? 1})</li>
-    <li>활동 글은 점수 없이 잘한 점·고칠 점 두 줄로 봐요. 엑셀 보고서는 숨은 원인을 찾았는지, 숫자 근거가 맞는지, 사실과 추측을 나눴는지 봐요.</li></ul></details>`;
+    <li>공지·패치노트·커뮤니티 글은 점수 없이 잘한 점·고칠 점 두 줄로 봐요. 엑셀 보고서는 숨은 원인을 찾았는지, 숫자 근거가 맞는지, 사실과 추측을 나눴는지 봐요.</li></ul></details>`;
 }
 function eventsHtml(set, game) {
   const evs = set?.events?.[game?.id] || [];
@@ -600,18 +617,7 @@ function viewToday() {
   else if (date !== S.today && !S.records[date]) banners.push('<p class="banner pink">어제 기록이에요. 저장하면 "⏱ 늦은 기록"으로 표시되고, 연속 기록은 그대로 이어져요.</p>');
   if (S.draftRestored) banners.push('<p class="banner info edit-only">저장하지 않은 작성 내용을 불러왔어요. <button class="linkbtn" data-act="draft-clear">작성 내용 버리기</button></p>');
 
-  const daily = S.settings.dailyItems.map((it) => {
-    if (it.type === 'job') {
-      const js = jobState(d, date);
-      const cls = js === 'done' ? 'done' : js === 'light' ? 'light' : js === 'half' ? 'half' : '';
-      return `<button class="daily-item ${cls}" type="button" disabled>
-        <span class="box">${js === 'done' || js === 'light' ? check : ''}</span>
-        <div><strong>${esc(it.name)}</strong><span class="small">${js === 'light' ? '가볍게 완료 (바쁜 날)' : `CS <span class="num">${csCount(d, date)}/3</span> · 활동 <span class="num">${activityDone(d) ? 1 : 0}/1</span>`}</span></div></button>`;
-    }
-    const on = !!d.daily[it.id];
-    return `<button class="daily-item ${on ? 'done' : ''}" type="button" data-act="daily" data-id="${esc(it.id)}" ${ed ? '' : 'disabled'} aria-pressed="${on}">
-      <span class="box">${on ? check : ''}</span><div><strong>${esc(it.name)}</strong><span class="small">${esc(it.note || '')}</span></div></button>`;
-  }).join('');
+  const daily = dailyHtml(d, date, ed);
 
   const used = busyUsed(date), limit = Number(S.settings.busyLimitPerWeek ?? 2), busyOk = d.busy || used < limit;
   const csCards = qs.map((q, i) => {
@@ -636,27 +642,35 @@ function viewToday() {
     </article>`;
   }).join('');
 
-  // 오늘의 활동
-  const a = d.activity;
-  const menu = a.menu ? menuById(a.menu) : null;
-  let actBody = '';
-  if (menu?.type === 'excel') actBody = excelHtml(date, d, ed);
-  else if (menu) {
-    const games = rotationList();
-    actBody = `${ed ? `<div class="act-grid">
-        <label class="field"><span>게임</span><select data-bind="act:game" id="act-game">${games.map((g) => `<option value="${esc(g.id)}" ${a.game === g.id ? 'selected' : ''}>${esc(g.name)}${rot && g.id === rot.game.id ? ' (이번 주 게임)' : ''}</option>`).join('')}</select></label>
-        ${(menu.fields || []).map((f) => `<label class="field"><span>${esc(f.label)}</span><input type="text" id="act-f-${esc(f.id)}" data-bind="act:field:${esc(f.id)}" value="${esc(a.fields[f.id] || '')}" placeholder="${esc(f.placeholder || '')}"></label>`).join('')}
-      </div>
-      <label class="field"><span>내용</span><textarea id="act-body" rows="9" data-bind="act:body">${esc(a.body || '')}</textarea></label>`
-      : `<p class="sub">${esc(gameById(a.game)?.name || '')}</p><p class="written">${esc(a.body || '')}</p>`}
-      ${S.records[date] && activityDone(S.records[date]) ? aiBlock(S.feedback[date]?.activity, 'act') : ''}`;
-  }
-  const linked = menu ? S.missions.filter((m) => m.menu === menu.id && !missionDone(m)) : [];
-  const counted = (m) => missionEntries(m).some((e) => e.date === date);
-  const linkedHtml = linked.map((m) => {
-    const n = missionEntries(m).length, plus = activityDone(d) && !counted(m) ? 1 : 0;
-    return `<p class="sub">연결된 미션 <b class="disp" style="color:var(--ink)">${esc(m.name)}</b> <span class="num">${plus ? `${n} → ${n + 1}` : n}/${m.target}</span></p>`;
-  }).join('');
+  // 매일 하는 활동(공지 작성 등)
+  const dailyActsHtml = dailyMenus().map((m) => `<section class="card">
+      <div class="card-head"><h2>오늘의 ${esc(m.name)}</h2><span class="sub">매일 · ${actDone(d, m.id) ? '작성함' : busyLightNote(d, date)}</span></div>
+      ${m.hint ? `<p class="sub">${esc(m.hint)}</p>` : ''}
+      ${actHtml(m, date, d, ed)}
+    </section>`).join('');
+
+  // 이번 주 과제 (월~일 안에 한 번씩)
+  const mon = mondayOf(date), wp = weekProgress(mon, d, date);
+  const wlist = weeklyMenus();
+  const status = (m) => {
+    const when = weekDoneDate(m.id, mon, d, date);
+    return { when, here: when === date, elsewhere: !!when && when !== date };
+  };
+  if (!wlist.some((m) => m.id === S.ui.wmenu)) S.ui.wmenu = (wlist.find((m) => !status(m).when) || wlist[0])?.id || null;
+  const wsel = menuById(S.ui.wmenu);
+  const wst = wsel ? status(wsel) : null;
+  const weeklyHtml = wlist.length ? `<section class="card">
+    <div class="card-head"><h2>이번 주 과제</h2><span class="sub"><span class="num">${md(mon)} – ${md(addDays(mon, 6))}</span> · <span class="num">${wp.done}/${wp.total}</span> 완료</span></div>
+    <p class="sub">이번 주 안에 하나씩, 편한 날에 해요. 고른 날짜의 기록에 함께 저장돼요.</p>
+    <div class="menu" role="group" aria-label="주간 과제 고르기">${wlist.map((m) => {
+      const s = status(m);
+      return `<button type="button" data-act="wmenu" data-id="${esc(m.id)}" aria-pressed="${S.ui.wmenu === m.id}">${s.when ? '✓ ' : ''}${esc(m.name)}${s.elsewhere ? ` <span class="sub num">${md(s.when)}</span>` : ''}</button>`;
+    }).join('')}</div>
+    ${wsel ? (wst.elsewhere
+      ? `<p class="banner info">이번 주 ${esc(wsel.name)}는 <b>${md(wst.when)}</b>에 끝냈어요. 그날 기록에서 보거나 고칠 수 있어요.${canEdit(wst.when) ? ` <button class="linkbtn" data-act="date" data-date="${wst.when}">${md(wst.when)} 기록 열기</button>` : ''}</p>
+         <p class="written">${esc(outputText(S.records[wst.when]?.acts?.[wsel.id], wsel.id))}</p>`
+      : `${wsel.hint ? `<p class="sub">${esc(wsel.hint)}</p>` : ''}${actHtml(wsel, date, d, ed)}`) : ''}
+  </section>` : '';
 
   const manual = S.missions.filter((m) => !m.menu && !missionDone(m));
   const manualHtml = manual.length ? `<section class="card"><div class="card-head"><h2>미션 진행</h2><span class="sub">연결 메뉴가 없는 미션은 여기서 체크해요</span></div>
@@ -715,12 +729,9 @@ function viewToday() {
     </aside>
   </div>
 
-  <section class="card">
-    <div class="card-head"><h2>오늘의 활동</h2><span class="sub">하나 골라서 하기</span></div>
-    <div class="menu" role="group" aria-label="활동 고르기">${menus().map((m) => `<button type="button" data-act="menu" data-id="${esc(m.id)}" aria-pressed="${a.menu === m.id}" ${ed ? '' : 'disabled'}>${esc(m.name)}</button>`).join('')}</div>
-    ${menu ? actBody : '<p class="sub">메뉴를 고르면 작성 칸이 나와요.</p>'}
-    ${linkedHtml}
-  </section>
+  ${dailyActsHtml}
+
+  ${weeklyHtml}
 
   ${manualHtml}
 
@@ -734,14 +745,56 @@ function viewToday() {
     <button class="btn primary" type="button" data-act="save" ${S.busy ? 'disabled' : ''}>${S.busy ? '저장하는 중…' : `${date === S.today ? '오늘' : md(date)} 기록 저장`}</button></div>` : ''}`;
 }
 
+// 일일 항목 버튼들 (입력 중에도 이 부분만 다시 그린다)
+function dailyHtml(d, date, ed) {
+  return S.settings.dailyItems.map((it) => {
+    const st = itemState(it, d, date);
+    const cls = st === 'none' ? '' : st;
+    const box = `<span class="box">${st === 'done' || st === 'light' ? check : ''}</span>`;
+    if (it.type === 'cs' || it.type === 'menu') {
+      const small = st === 'light' ? '가볍게 완료 (바쁜 날)'
+        : it.type === 'cs' ? `<span class="num">${csCount(d, date)}/3</span> 작성`
+        : actDone(d, it.menu) ? '작성함' : esc(it.note || '');
+      return `<button class="daily-item ${cls}" type="button" disabled>${box}<div><strong>${esc(it.name)}</strong><span class="small">${small}</span></div></button>`;
+    }
+    const on = st === 'done';
+    return `<button class="daily-item ${cls}" type="button" data-act="daily" data-id="${esc(it.id)}" ${ed ? '' : 'disabled'} aria-pressed="${on}">
+      ${box}<div><strong>${esc(it.name)}</strong><span class="small">${esc(it.note || '')}</span></div></button>`;
+  }).join('');
+}
+function busyLightNote(d, date) {
+  return d.busy && csCount(d, date) >= 1 ? '바쁜 날이라 쉬어도 돼요' : '아직';
+}
+// 활동 메뉴 하나의 작성 칸
+function actHtml(m, date, d, ed) {
+  if (m.type === 'excel') return excelHtml(date, d, ed) + linkedHtml(m, date, d);
+  const a = d.acts[m.id] || blankAct(m.id, date);
+  const rot = rotationGame(date);
+  const saved = actDone(S.records[date], m.id);
+  const body = ed ? `<div class="act-grid">
+      <label class="field"><span>게임</span><select data-bind="act:${esc(m.id)}:game" id="act-${esc(m.id)}-game">${rotationList().map((g) => `<option value="${esc(g.id)}" ${a.game === g.id ? 'selected' : ''}>${esc(g.name)}${rot && g.id === rot.game.id ? ' (이번 주 게임)' : ''}</option>`).join('')}</select></label>
+      ${(m.fields || []).map((f) => `<label class="field"><span>${esc(f.label)}</span><input type="text" id="act-${esc(m.id)}-f-${esc(f.id)}" data-bind="act:${esc(m.id)}:field:${esc(f.id)}" value="${esc(a.fields?.[f.id] || '')}" placeholder="${esc(f.placeholder || '')}"></label>`).join('')}
+    </div>
+    <label class="field"><span>내용</span><textarea id="act-${esc(m.id)}-body" rows="9" data-bind="act:${esc(m.id)}:body">${esc(a.body || '')}</textarea></label>`
+    : actDone(d, m.id) ? `<p class="sub">${esc(gameById(a.game)?.name || '')}</p><p class="written">${esc(outputText(a, m.id))}</p>` : '<p class="sub">작성한 내용이 없어요.</p>';
+  return body + (saved ? aiBlock(S.feedback[date]?.acts?.[m.id], 'act') : '') + linkedHtml(m, date, d);
+}
+function linkedHtml(m, date, d) {
+  const counted = (x) => missionEntries(x).some((e) => e.date === date);
+  return S.missions.filter((x) => x.menu === m.id && !missionDone(x)).map((x) => {
+    const n = missionEntries(x).length, plus = actDone(d, m.id) && !counted(x) ? 1 : 0;
+    return `<p class="sub">연결된 미션 <b class="disp" style="color:var(--ink)">${esc(x.name)}</b> <span class="num">${plus ? `${n} → ${n + 1}` : n}/${x.target}</span></p>`;
+  }).join('');
+}
+
 function excelHtml(date, d, ed) {
   const ent = excelEntry(date);
   if (!ent) return '<div class="empty">아직 엑셀 과제가 없어요. 매주 월요일 0시에 자동으로 만들어져요.</div>';
   const task = S.excelCache[ent.week];
   if (task === undefined) { ensureExcel(ent.week); return '<p class="sub">과제를 불러오는 중…</p>'; }
   if (!task) return '<p class="sub">과제를 불러오는 중…</p>';
-  const ex = d.activity.excel || {};
-  const saved = S.records[date]?.activity?.excel;
+  const ex = d.acts.excel || {};
+  const saved = S.records[date]?.acts?.excel;
   const reveal = excelWritten(saved?.report) ? decodeReveal(task.reveal) : null;
   const parts = task.report || EXCEL_REPORT;
   return `<div class="game-box">
@@ -753,14 +806,14 @@ function excelHtml(date, d, ed) {
     <label class="field"><span>보고서 (${parts.map((r) => esc(r.label)).join(' / ')})</span><textarea id="ex-report" data-bind="excel:report" rows="9" placeholder="${esc(parts.map((r) => `[${r.label}] ${r.guide}`).join('\n'))}" ${ed ? '' : 'readonly'}>${esc(ex.report || '')}</textarea></label>
     ${ed ? '<div class="row"><button class="btn small" type="button" data-act="excel-tpl">보고서 틀 넣기</button><span class="sub">저장하면 숨은 원인과 근거 수치가 공개돼요. 그 뒤엔 일요일 채점 전까지 고칠 수 있어요.</span></div>' : ''}
     ${reveal ? `<div class="banner info"><b class="disp">숨은 원인</b><br>${esc(reveal.cause || '')}${(reveal.evidence || []).length ? `<br><span class="sub">근거: ${reveal.evidence.map(esc).join(' / ')}</span>` : ''}</div>` : ''}
-    ${S.feedback[date]?.excel ? aiBlock(S.feedback[date].excel, 'act') : ''}`;
+    ${excelWritten(saved?.report) ? aiBlock(S.feedback[date]?.acts?.excel, 'act') : ''}`;
 }
 
 // ───────── 미션 ─────────
 function viewMissions() {
   const f = S.ui.mfilter;
-  const usedGames = [...new Set(sortedDates().map((d) => S.records[d].activity?.game).filter(Boolean))].map(gameById).filter(Boolean);
-  const filt = (e) => f === 'all' || e.rec.activity?.game === f;
+  const usedGames = [...new Set(sortedDates().flatMap((d) => doneActs(S.records[d]).map((id) => S.records[d].acts[id].game)).filter(Boolean))].map(gameById).filter(Boolean);
+  const filt = (e) => f === 'all' || e.act?.game === f;
   const form = S.ui.mform;
   const card = (m) => {
     const ents = missionEntries(m), shown = ents.filter(filt), open = S.ui.mopen === m.id;
@@ -794,8 +847,8 @@ function outputsHtml(m, ents) {
   let cmpHtml = '';
   if (S.ui.mcmpShow?.id === m.id) {
     const [a, b] = S.ui.mcmpShow.keys.map((k) => ents.find((e) => keyOf(e) === k)).filter(Boolean);
-    if (a && b) cmpHtml = `<div class="compare">${[a, b].map((e) => `<div class="col"><b class="disp">${md(e.date)} · ${esc(gameById(e.rec.activity?.game)?.name || '')}</b>
-      <p class="written">${esc(e.note ?? outputText(e.rec))}</p>${aiBlock(S.feedback[e.date]?.activity, 'act')}</div>`).join('')}</div>
+    if (a && b) cmpHtml = `<div class="compare">${[a, b].map((e) => `<div class="col"><b class="disp">${md(e.date)} · ${esc(gameById(e.act?.game)?.name || '')}</b>
+      <p class="written">${esc(e.note ?? outputText(e.act, e.menu))}</p>${aiBlock(S.feedback[e.date]?.acts?.[e.menu], 'act')}</div>`).join('')}</div>
       <button class="btn small" type="button" data-act="mcmp-close">비교 닫기</button>`;
   }
   return `<div class="row"><button class="btn small" type="button" data-act="mcmp-go" data-id="${esc(m.id)}" ${ents.length < 2 ? 'disabled' : ''}>⇄ 비교하기</button>
@@ -806,15 +859,16 @@ function outputsHtml(m, ents) {
       return `<div class="acc ${open ? 'open' : ''}">
         <div class="acc-head" role="button" tabindex="0" data-act="acc" data-key="${esc(k)}">
           <input type="checkbox" data-act="mcmp-pick" data-key="${esc(k)}" ${S.ui.mcmp.includes(k) ? 'checked' : ''} aria-label="비교할 결과물로 고르기">
-          <span class="num">${md(e.date)}</span><span class="peek">${esc(gameById(e.rec.activity?.game)?.name || '')} · ${esc((e.note ?? outputText(e.rec)).split('\n')[0])}</span><span class="chev">›</span></div>
-        ${open ? `<div class="acc-body"><span class="mine">✍️ 내 결과물</span><p class="written">${esc(e.note ?? outputText(e.rec))}</p>${m.menu ? aiBlock(S.feedback[e.date]?.activity || S.feedback[e.date]?.excel, 'act') : ''}</div>` : ''}
+          <span class="num">${md(e.date)}</span><span class="peek">${esc(gameById(e.act?.game)?.name || '')} · ${esc((e.note ?? outputText(e.act, e.menu)).split('\n')[0])}</span><span class="chev">›</span></div>
+        ${open ? `<div class="acc-body"><span class="mine">✍️ 내 결과물</span><p class="written">${esc(e.note ?? outputText(e.act, e.menu))}</p>${m.menu ? aiBlock(S.feedback[e.date]?.acts?.[e.menu], 'act') : ''}</div>` : ''}
       </div>`;
     }).join('')}</div>`;
 }
-function outputText(rec) {
-  const a = rec.activity || {};
-  const m = menuById(a.menu);
-  if (a.menu === 'excel') return [`엑셀 과제 ${a.excel?.week || ''}`, a.excel?.report || ''].filter(Boolean).join('\n');
+// 활동 하나(acts[메뉴])를 글로 보여 주기
+function outputText(a, menuId) {
+  a ||= {};
+  const m = menuById(menuId);
+  if (m?.type === 'excel') return [`엑셀 과제 ${a.week || ''}`, a.report || ''].filter(Boolean).join('\n');
   const fields = (m?.fields || []).map((f) => (a.fields?.[f.id] ? `${f.label}: ${(m.prefix && f.id === 'title' ? m.prefix : '')}${a.fields[f.id]}` : '')).filter(Boolean);
   return [...fields, a.body || ''].join('\n');
 }
@@ -912,14 +966,14 @@ function dateView() {
     return `<div class="acc ${open ? 'open' : ''}" id="rec-${d}">
       <div class="acc-head" role="button" tabindex="0" data-act="acc" data-key="${esc(k)}">
         <span class="num">${md(d)} ${WD[pd(d).getUTCDay()]}</span><span class="tag sky num">${l.done}/${l.total}</span>
-        <span class="peek">${r.busy ? '바쁜 날 · ' : ''}${r.late ? '⏱ 늦은 기록 · ' : ''}${isPractice(d) ? '연습 · ' : ''}${esc(menuById(r.activity?.menu)?.name || '')}${r.memo ? ' · ' + esc(r.memo) : ''}</span><span class="chev">›</span></div>
+        <span class="peek">${r.busy ? '바쁜 날 · ' : ''}${r.late ? '⏱ 늦은 기록 · ' : ''}${isPractice(d) ? '연습 · ' : ''}${doneActs(r).map((id) => esc(menuById(id)?.name || id)).join(', ')}${r.memo ? ' · ' + esc(r.memo) : ''}</span><span class="chev">›</span></div>
       ${open ? `<div class="acc-body">
         <div class="checks">${S.settings.dailyItems.map((it) => `<span class="${itemDone(it, r, d) ? 'on' : ''}">${itemDone(it, r, d) ? '✓' : '·'} ${esc(it.name)}</span>`).join('')}</div>
         ${qs.map((q) => `<div class="stack" style="gap:4px"><span class="sub"><span class="tag">${esc(q.type)}</span> ${esc(q.text)}</span>
           <p class="written">${esc(r.cs.answers[q.id])}</p>
           <div class="row"><span>${S.feedback[d]?.cs?.[q.id] ? scoreBar(S.feedback[d].cs[q.id].score) : '<span class="sub">채점 대기</span>'}</span>
           <button class="linkbtn" data-act="goq" data-qid="${esc(q.id)}">성장 기록 보기 →</button></div></div>`).join('')}
-        ${activityDone(r) ? `<div class="stack" style="gap:4px"><b class="disp">${esc(menuById(r.activity.menu)?.name || '')} · ${esc(gameById(r.activity.game)?.name || '')}</b><p class="written">${esc(outputText(r))}</p>${aiBlock(S.feedback[d]?.activity || S.feedback[d]?.excel, 'act')}</div>` : ''}
+        ${doneActs(r).map((id) => { const a = r.acts[id], m = menuById(id); return `<div class="stack" style="gap:4px"><b class="disp">${m?.cycle === 'weekly' ? '주간 · ' : ''}${esc(m?.name || id)}${gameById(a.game) ? ' · ' + esc(gameById(a.game).name) : ''}</b><p class="written">${esc(outputText(a, id))}</p>${aiBlock(S.feedback[d]?.acts?.[id], 'act')}</div>`; }).join('')}
         ${r.memo ? `<p class="sub">메모: ${esc(r.memo)}</p>` : ''}
       </div>` : ''}</div>`;
   }).join('')}</div>`;
@@ -968,15 +1022,23 @@ function viewStats() {
   const top = items.reduce((a, b) => (b.cur > (a?.cur ?? -1) ? b : a), null);
   const rot = rotationList();
   const counts = Object.fromEntries(rot.map((g) => [g.id, 0]));
-  for (const d of sortedDates()) { const r = S.records[d]; if (!isPractice(d) && activityDone(r) && r.activity.game in counts) counts[r.activity.game]++; }
+  for (const d of sortedDates()) {
+    if (isPractice(d)) continue;
+    const r = S.records[d];
+    for (const id of doneActs(r)) if (r.acts[id].game in counts) counts[r.acts[id].game]++;
+  }
   const usedN = Object.values(counts).filter((n) => n > 0).length;
   const maxC = Math.max(1, ...Object.values(counts));
-  // 엑셀 분석: AI 코치가 채점한 보고서 중 숨은 원인을 찾은 비율 (feedback.excel.found)
+  // 주간 과제: 시작 주부터 이번 주까지, 주마다 몇 개 끝냈는지
+  const weeks = [];
+  for (let w = mondayOf(start()); w <= mondayOf(S.today); w = addDays(w, 7)) weeks.push({ week: w, ...weekProgress(w) });
+  const thisWeek = weeks[weeks.length - 1];
+  // 엑셀 분석: AI 코치가 채점한 보고서 중 숨은 원인을 찾은 비율 (feedback.acts.excel.found)
   const byType = {};
   let ok = 0, all = 0;
   for (const d of sortedDates()) {
-    const ex = S.records[d].activity?.excel;
-    const found = S.feedback[d]?.excel?.found;
+    const ex = S.records[d].acts?.excel;
+    const found = S.feedback[d]?.acts?.excel?.found;
     if (!ex || typeof found !== 'boolean' || isPractice(d)) continue;
     const type = (S.excelIndex.weeks || []).find((w) => w.week === ex.week)?.type || '기타';
     all++; if (found) ok++;
@@ -990,6 +1052,7 @@ function viewStats() {
   <section class="card"><div class="card-head"><h2>CS 점수 추이</h2><span class="sub">주별 AI 코치 평균 (5점 만점)</span></div>${chartHtml()}</section>
   <div class="minis">
     ${mini('streak', '항목별 연속일', top && top.cur ? `${esc(top.it.name)} ${top.cur}일` : '–', items.map((x) => hbar(x.it.name, x.cur, Math.max(1, ...items.map((y) => y.best)), `${x.cur}/${x.best}`)).join('') + '<span class="sub">지금 연속 / 최고 기록</span>')}
+    ${mini('weekly', '주간 과제', thisWeek ? `이번 주 ${thisWeek.done}/${thisWeek.total}` : '–', weeks.length ? weeks.slice(-8).map((w) => hbar(`${md(w.week)} 주`, w.done, Math.max(1, w.total), `${w.done}/${w.total}`)).join('') + '<span class="sub">최근 8주 · 패치노트, 커뮤니티, 엑셀</span>' : '<span class="sub">챌린지가 시작되면 보여요</span>')}
     ${mini('games', '게임별 활동', `${rot.length}개 중 ${usedN}개`, rot.map((g) => hbar(g.name, counts[g.id], maxC)).join(''))}
     ${mini('excel', '엑셀 원인 찾기', all ? `${ok}/${all}` : '–', Object.keys(byType).length ? Object.entries(byType).map(([t, [o, n]]) => hbar(t, o, n, `${o}/${n}`)).join('') + '<span class="sub">숨은 원인을 찾은 보고서 / 채점된 보고서</span>' : '<span class="sub">아직 채점된 보고서가 없어요</span>')}
   </div>`;
@@ -1014,9 +1077,10 @@ function viewSettings() {
 
   <section class="card"><div class="card-head"><h2>일일 항목</h2><button class="btn small edit-only" type="button" data-act="item-add">항목 추가</button></div>
     <div class="list-edit">${f.dailyItems.map((it, i) => `<div class="li">
-      <input type="text" data-bind="item:${i}:name" value="${esc(it.name)}" aria-label="항목 이름" ${it.type === 'job' ? 'readonly' : ''}>
+      <input type="text" data-bind="item:${i}:name" value="${esc(it.name)}" aria-label="항목 이름" ${it.type ? 'readonly' : ''}>
       <input type="text" data-bind="item:${i}:note" value="${esc(it.note || '')}" aria-label="설명" placeholder="설명 (선택)">
-      ${it.type === 'job' ? '<span class="sub">고정</span>' : `<button class="btn small ghost danger edit-only" type="button" data-act="item-del" data-i="${i}">삭제</button>`}</div>`).join('')}</div></section>
+      ${it.type ? '<span class="sub">고정</span>' : `<button class="btn small ghost danger edit-only" type="button" data-act="item-del" data-i="${i}">삭제</button>`}</div>`).join('')}</div>
+    <p class="sub">CS 문의와 공지 작성은 고정이에요. 추가한 항목은 오늘 탭에서 눌러서 체크해요. 주간 과제(패치노트·커뮤니티·엑셀)는 일일 항목이 아니라 오늘 탭의 "이번 주 과제"에 있어요.</p></section>
 
   <section class="card"><div class="card-head"><h2>게임 목록 · 로테이션 순서</h2><span class="sub">매주 월요일 다음 게임으로 바뀌어요</span></div>
     <div class="list-edit">${f.gameRotation.map((id, i) => { const g = gName(id); return g ? `<div class="li g"><span class="num sub">${i + 1}</span>
@@ -1058,10 +1122,11 @@ function viewSettings() {
 const GUIDE = {
   today: { name: '오늘', blocks: [
     ['head', '머리 영역', '연속 기록 · 열쇠 · 잠그기', 'span3', '연속 기록은 일일 항목을 모두 끝낸 날이 며칠째 이어지는지예요. 저장하려면 PC에서 [열쇠 넣기]로 보드 열쇠를 붙여 넣어요. 공용 컴퓨터에서는 다 쓴 뒤 꼭 [잠그기]를 눌러요.'],
-    ['daily', '일일 항목', '날짜 고르기 · 체크 · 시작일', 'span3', '눌러서 체크해요. 연습 기간에는 안내 줄에서 시작일을 바꿀 수 있어요(설정 탭에서도 가능). 직무능력준비는 CS 3개와 활동 1개를 모두 하면 자동으로 완료돼요. 새 기록은 오늘과 어제만 쓸 수 있고, 어제 기록은 "늦은 기록"으로 표시돼요.'],
-    ['cs', '오늘의 CS 문의', '가상 게임 · 이벤트 · 지난 답변', 'span2', '요일마다 가상 게임 하나의 문의 3개가 와요. 이벤트 칸과 상황 정보를 읽고 답변을 써요. 아래에는 지난주 같은 문의에 쓴 내 답변과 AI 코치 피드백이 보여요.'],
-    ['side', '이번 주 게임 · 메인 미션', '게임 바꾸기 · 추가', '', '오늘의 활동에 쓰는 실제 게임은 매주 월요일 바뀌어요. [이번 주 게임 바꾸기 · 게임 추가]를 열면 이번 주 게임만 바꾸거나 새 게임을 넣을 수 있어요. 미션은 마감이 가까운 순서로 보여요.'],
-    ['activity', '오늘의 활동 · 바쁜 날 모드', '메뉴 4개 중 하나', 'span2', '패치노트 분석, 커뮤니티 보고서, 공지 작성, 엑셀·데이터 중 하나를 골라 써요. 연결된 미션이 자동으로 +1 돼요. 바쁜 날 모드를 켜면 CS 1개만 해도 가볍게 완료로 인정돼요 (한 주 2번까지).'],
+    ['daily', '일일 항목', '날짜 고르기 · CS 문의 · 공지 작성', 'span3', '매일 할 일은 CS 문의 3개와 공지 작성 1개예요. 쓰면 자동으로 체크돼요. 연습 기간에는 안내 줄에서 시작일을 바꿀 수 있어요(설정 탭에서도 가능). 새 기록은 오늘과 어제만 쓸 수 있고, 어제 기록은 "늦은 기록"으로 표시돼요.'],
+    ['cs', '오늘의 CS 문의 · 바쁜 날 모드', '가상 게임 · 이벤트 · 지난 답변', 'span2', '요일마다 가상 게임 하나의 문의 3개가 와요. 이벤트 칸과 상황 정보를 읽고 답변을 써요. 아래에는 지난주 같은 문의에 쓴 내 답변과 AI 코치 피드백이 보여요. 바쁜 날 모드를 켜면 CS 1개만 해도 그날을 가볍게 완료로 인정해요 (한 주 2번까지).'],
+    ['side', '이번 주 게임 · 메인 미션', '게임 바꾸기 · 추가', '', '공지·패치노트·커뮤니티에 쓰는 실제 게임은 매주 월요일 바뀌어요. [이번 주 게임 바꾸기 · 게임 추가]를 열면 이번 주 게임만 바꾸거나 새 게임을 넣을 수 있어요. 미션은 마감이 가까운 순서로 보여요.'],
+    ['notice', '오늘의 공지 작성', '매일', 'span3', '이번 주 게임으로 연습 공지를 하나 써요. 제목 앞에 [연습]이 붙어요. 연결된 미션이 자동으로 +1 돼요.'],
+    ['weekly', '이번 주 과제', '패치노트 · 커뮤니티 · 엑셀', 'span3', '월~일 안에 하나씩, 편한 날에 해요. 끝낸 과제에는 ✓와 날짜가 붙고, 같은 주에는 다시 하지 않아요. 고른 날짜의 기록에 함께 저장돼요.'],
     ['save', '저장', '맨 아래', '', '[기록 저장]을 누르면 GitHub에 바로 기록돼요. 같은 날 기록은 그 주 일요일 채점 전까지 다시 저장해서 고칠 수 있어요.'],
   ] },
   missions: { name: '미션', blocks: [
@@ -1082,12 +1147,12 @@ const GUIDE = {
     ['big', '큰 숫자 3개', '연속 기록 · 달성률 · CS 점수', 'span3', '연속 기록, 이번 달 달성률, CS 평균 점수 변화(첫 주 → 최근 주)예요.'],
     ['grass', '잔디', '하루 한 칸', 'span2', '색이 진할수록 일일 항목을 많이 한 날이에요. 분홍 칸은 바쁜 날 모드로 가볍게 완료한 날이에요. 칸을 누르면 그날 기록으로 가요.'],
     ['chart', 'CS 점수 추이', '주별 평균', '', '매주 일요일 23:50 AI 코치 채점이 끝나면 점이 하나씩 생겨요.'],
-    ['minis', '작은 카드 3개', '항목별 연속일 · 게임별 활동 · 엑셀 원인 찾기', 'span3', '핵심 숫자가 보이고, [펼치기]를 누르면 자세한 막대그래프가 나와요. 엑셀 원인 찾기는 일요일 채점에서 숨은 원인을 찾았다고 본 보고서 수예요.'],
+    ['minis', '작은 카드 4개', '항목별 연속일 · 주간 과제 · 게임별 활동 · 엑셀 원인 찾기', 'span3', '핵심 숫자가 보이고, [펼치기]를 누르면 자세한 막대그래프가 나와요. 주간 과제는 주마다 3개 중 몇 개 끝냈는지, 엑셀 원인 찾기는 일요일 채점에서 숨은 원인을 찾았다고 본 보고서 수예요.'],
   ] },
   settings: { name: '설정', blocks: [
     ['basic', '기본 정보', '제목 · 소개 · 시작일', 'span2', '시작일을 바꾸면 게임 로테이션, 문의 세트, 통계가 그 날짜 기준으로 다시 계산돼요.'],
     ['key', '보드 열쇠', '만드는 법', '', '이 저장소에만 쓸 수 있는 GitHub 토큰이에요. 만드는 순서가 화면에 적혀 있어요.'],
-    ['items', '일일 항목', '이름 · 설명 · 추가', 'span2', '항목을 바꾸거나 더해요. 직무능력준비는 고정이에요.'],
+    ['items', '일일 항목', '이름 · 설명 · 추가', 'span2', '직접 체크하는 항목을 더할 수 있어요. CS 문의와 공지 작성은 고정이에요.'],
     ['games', '게임 목록', '순서 · 추가', '', '로테이션 순서를 바꾸거나 가고 싶은 회사의 게임을 추가해요.'],
     ['folder', '내 폴더 · 함께 쓰기', '집 PC에서', 'span3', '폴더를 연결하면 저장할 때 내 컴퓨터에도 파일이 생기고, [가져오기]로 저장소 전체를 받아요. 다른 사람은 템플릿으로 복사해 써요.'],
   ] },
@@ -1155,13 +1220,18 @@ document.addEventListener('input', (e) => {
   const d = S.draft;
   switch (k) {
     case 'cs': d.cs.answers[rest[0]] = v; break;
-    case 'act':
-      if (rest[0] === 'body') d.activity.body = v;
-      else if (rest[0] === 'field') d.activity.fields[rest[1]] = v;
-      else if (rest[0] === 'game') d.activity.game = v;
+    case 'act': {
+      // act:<메뉴>:body | act:<메뉴>:game | act:<메뉴>:field:<칸>
+      const [mid, part, fid] = rest;
+      const a = d.acts[mid] ||= blankAct(mid, S.date);
+      a.fields ||= {};
+      if (part === 'body') a.body = v;
+      else if (part === 'field') a.fields[fid] = v;
+      else if (part === 'game') a.game = v;
       break;
+    }
     case 'excel': {
-      const ex = d.activity.excel ||= { week: excelEntry(S.date)?.week || null };
+      const ex = d.acts.excel ||= blankAct('excel', S.date);
       if (rest[0] === 'report') ex.report = v;
       break;
     }
@@ -1174,22 +1244,18 @@ document.addEventListener('input', (e) => {
   }
   if (['cs', 'act', 'excel', 'memo', 'mm'].includes(k)) {
     saveDraftSoon();
-    if (k === 'cs' || k === 'act') softRefreshToday();
+    if (k === 'cs' || k === 'act' || k === 'excel') softRefreshToday();
   }
 });
-// 입력 중에는 전체를 다시 그리지 않고, 일일 항목 상태만 갱신한다
+// 입력 중에는 전체를 다시 그리지 않고, 일일 항목 버튼만 다시 그린다 (입력 칸 포커스 유지)
 let softTimer = null;
 function softRefreshToday() {
   clearTimeout(softTimer);
   softTimer = setTimeout(() => {
-    if (S.view !== 'today') return;
-    const items = document.querySelectorAll('.daily .daily-item');
-    const idx = S.settings.dailyItems.findIndex((it) => it.type === 'job');
-    if (idx < 0 || !items[idx]) return;
-    const js = jobState(S.draft, S.date || S.today);
-    items[idx].className = 'daily-item ' + (js === 'done' ? 'done' : js === 'light' ? 'light' : js === 'half' ? 'half' : '');
-    items[idx].querySelector('.box').innerHTML = js === 'done' || js === 'light' ? check : '';
-    items[idx].querySelector('.small').innerHTML = js === 'light' ? '가볍게 완료 (바쁜 날)' : `CS <span class="num">${csCount(S.draft, S.date || S.today)}/3</span> · 활동 <span class="num">${activityDone(S.draft) ? 1 : 0}/1</span>`;
+    if (S.view !== 'today' || !S.draft) return;
+    const date = S.date || S.today;
+    const box = document.querySelector('.daily');
+    if (box) box.innerHTML = dailyHtml(S.draft, date, canEdit(date) && !isNarrow());
   }, 250);
 }
 document.addEventListener('change', (e) => {
@@ -1233,19 +1299,11 @@ document.addEventListener('click', async (e) => {
       if (!d.busy && busyUsed(S.date) >= limit) { e.preventDefault(); toast(`바쁜 날 모드는 한 주에 ${limit}번까지 쓸 수 있어요.`); return; }
       d.busy = !d.busy; saveDraftSoon(); render(); break;
     }
-    case 'menu': {
-      if (!canEdit(S.date)) return;
-      const m = menuById(id);
-      d.activity.menu = id;
-      if (m?.type === 'excel') { const ent = excelEntry(S.date); d.activity.excel ||= { week: ent?.week || null }; }
-      else if (!(d.activity.body || '').trim() || menus().some((x) => (x.template || '').trim() === (d.activity.body || '').trim())) d.activity.body = m?.template || '';
-      if (!d.activity.game) d.activity.game = rotationGame(S.date)?.game?.id || '';
-      saveDraftSoon(); render(); break;
-    }
+    case 'wmenu': S.ui.wmenu = id; render(); break;
     case 'excel-tpl': {
       if (!canEdit(S.date)) return;
       const ent = excelEntry(S.date), task = ent && S.excelCache[ent.week];
-      const ex = d.activity.excel ||= { week: ent?.week || null };
+      const ex = d.acts.excel ||= blankAct('excel', S.date);
       if ((ex.report || '').trim()) return; // 이미 쓴 내용은 덮어쓰지 않는다
       ex.report = excelReportTemplate(task);
       saveDraftSoon(); render(); break;
@@ -1281,7 +1339,7 @@ document.addEventListener('click', async (e) => {
     case 'mfilter': S.ui.mfilter = id; render(); break;
     case 'mopen': S.ui.mopen = S.ui.mopen === id ? null : id; S.ui.mcmp = []; S.ui.mcmpShow = null; render(); break;
     case 'mcmp-go': {
-      const m = S.missions.find((x) => x.id === id), ents = missionEntries(m).filter((x) => S.ui.mfilter === 'all' || x.rec.activity?.game === S.ui.mfilter);
+      const m = S.missions.find((x) => x.id === id), ents = missionEntries(m).filter((x) => S.ui.mfilter === 'all' || x.act?.game === S.ui.mfilter);
       const keyOf = (x) => `m:${id}:${x.date}`;
       const keys = S.ui.mcmp.length === 2 ? [...S.ui.mcmp] : [keyOf(ents[0]), keyOf(ents[ents.length - 1])];
       keys.sort((a, b) => (a.split(':').pop() < b.split(':').pop() ? -1 : 1));
@@ -1374,9 +1432,16 @@ document.addEventListener('click', async (e) => {
 });
 
 // ───────── 시작 ─────────
+// 예전 설정(공고 확인 + 직무능력준비)을 새 고정 항목(CS 문의 + 공지 작성)으로 바꾸고, 직접 추가한 항목은 그대로 둔다
+function fixDailyItems(items) {
+  const own = (items || []).filter((it) => !it.type && it.id !== 'jobs');
+  const fixed = clone(DEFAULT_SETTINGS.dailyItems).map((f) => ({ ...f, ...((items || []).find((it) => it.id === f.id && it.type === f.type) || {}) }));
+  return [...fixed, ...own];
+}
 async function loadAll() {
   const st = await loadJSON('data/settings.json', {});
   S.settings = { ...clone(DEFAULT_SETTINGS), ...st };
+  S.settings.dailyItems = fixDailyItems(S.settings.dailyItems);
   const p = S.settings.pack || 'game-ops';
   const [pack, acts, real, mis, recs, fb, xi] = await Promise.all([
     loadJSON(`packs/${p}/pack.json`, null),
