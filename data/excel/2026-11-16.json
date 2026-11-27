@@ -6,29 +6,28 @@
   "situation": "지난주 제재 기록이에요. 팀장님이 사유별 제재 건수와 이의 신청 결과를 정리해 달라고 했어요.",
   "file": "excel/2026-11-16_엑셀과제.xlsx",
   "rows": 1173,
-  "questions": [
+  "task": "데이터를 살펴보고 평소와 다른 점을 찾아 팀장님께 보고하세요. 숫자 근거를 함께 적으세요.",
+  "report": [
     {
-      "id": "q1",
-      "kind": "number",
-      "text": "지난주 '불법 프로그램' 사유 제재는 모두 몇 건인가요?",
-      "hint": "COUNTIF로 '사유' 열을 세 보세요.",
-      "unit": "건",
-      "hash": "27e1615212f3c6ea846ed6c412df1361ce97f006ee20bb5aa2483a3b61d5cadd"
+      "label": "한 줄 요약",
+      "guide": "팀장님이 이 줄만 읽어도 알 수 있게"
     },
     {
-      "id": "q2",
-      "kind": "number",
-      "text": "이의 신청 결과가 '해제'인 건은 모두 몇 건인가요?",
-      "hint": "COUNTIF로 '결과' 열에서 해제를 세 보세요.",
-      "unit": "건",
-      "hash": "8b940be7fb78aaa6b6567dd7a3987996947460df1c668e698eb92ca77e425349"
+      "label": "이상 징후",
+      "guide": "언제, 무엇이 평소와 달랐는지"
     },
     {
-      "id": "q3",
-      "kind": "reason",
-      "text": "무슨 일이 있었을까요? 데이터에서 찾은 근거를 함께 적으세요.",
-      "hint": "날짜별로 '불법 프로그램' 건수와 '해제' 건수를 나란히 놓고 보세요 (피벗 테이블)."
+      "label": "숫자 근거",
+      "guide": "근거 수치 2~3개 (평소와 비교해서)"
+    },
+    {
+      "label": "원인 추정",
+      "guide": "확인한 사실과 추측을 나눠서"
+    },
+    {
+      "label": "다음 조치",
+      "guide": "누가 무엇을 확인·처리하면 좋을지"
     }
   ],
-  "reveal": "eyJhbnN3ZXJzIjogeyJxMSI6ICIyODLqsbQiLCAicTIiOiAiODjqsbQifSwgImNhdXNlIjogIjExLzExKOyImCnsl5Ag7JWI7Yuw7LmY7Yq4IO2DkOyngCDsl4XrjbDsnbTtirgg7Jik66WY66GcIOygleyDgSDsnKDsoIDqsIAgJ+u2iOuylSDtlITroZzqt7jrnqgn7Jy866GcIOyemOuquyDsoJzsnqzrkJDqs6AsIOydtOydmCDsi6Dssq0g7ZuEIOuMgOu2gOu2hCDtlbTsoJzrkJDslrTsmpQuIiwgImV2aWRlbmNlIjogWyIxMS8xMSjsiJgpIOu2iOuylSDtlITroZzqt7jrnqgg7KCc7J6sIDExNOqxtCAo64uk66W4IOuCoCDtlZjro6ggMzB+NDDqsbQg7IiY7KSAKSIsICLqt7jrgqAg7ZW07KCcIDcz6rG07Jy866GcIOuLpOuluCDrgqDrs7Tri6Qg7Zuo7JSsIOunjuydjCIsICLqt7jrgqAg7KCc7J6sIOuMgOu2gOu2hOydtCDsnbTsnZgg7Iug7LKtIFkiXX0="
+  "reveal": "eyJjYXVzZSI6ICIxMS8xMSjsiJgp7JeQIOyViO2LsOy5mO2KuCDtg5Dsp4Ag7JeF642w7J207Yq4IOyYpOulmOuhnCDsoJXsg4Eg7Jyg7KCA6rCAICfrtojrspUg7ZSE66Gc6re4656oJ+ycvOuhnCDsnpjrqrsg7KCc7J6s65CQ6rOgLCDsnbTsnZgg7Iug7LKtIO2bhCDrjIDrtoDrtoQg7ZW07KCc65CQ7Ja07JqULiIsICJldmlkZW5jZSI6IFsiMTEvMTEo7IiYKSDrtojrspUg7ZSE66Gc6re4656oIOygnOyerCAxMTTqsbQgKOuLpOuluCDrgqAg7ZWY66OoIDMwfjQw6rG0IOyImOykgCkiLCAi6re464KgIO2VtOygnCA3M+qxtOycvOuhnCDri6Trpbgg64Kg67O064ukIO2bqOyUrCDrp47snYwiLCAi6re464KgIOygnOyerCDrjIDrtoDrtoTsnbQg7J207J2YIOyLoOyyrSBZIl19"
 }

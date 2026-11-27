@@ -6,29 +6,28 @@
   "situation": "지난주 유료 상품 결제 기록이에요. 팀장님이 매출 합계와 특이 사항을 정리해 달라고 했어요.",
   "file": "excel/2026-11-09_엑셀과제.xlsx",
   "rows": 1512,
-  "questions": [
+  "task": "데이터를 살펴보고 평소와 다른 점을 찾아 팀장님께 보고하세요. 숫자 근거를 함께 적으세요.",
+  "report": [
     {
-      "id": "q1",
-      "kind": "number",
-      "text": "지난주 결제 완료 매출 합계는 얼마인가요? (원)",
-      "hint": "SUMIF(결제 상태 '완료', 단가)를 써 보세요.",
-      "unit": "원",
-      "hash": "9247b652e93b76445b1ff0acd9491eb33a871e8ff0a464c2507c028aefff14c9"
+      "label": "한 줄 요약",
+      "guide": "팀장님이 이 줄만 읽어도 알 수 있게"
     },
     {
-      "id": "q2",
-      "kind": "number",
-      "text": "결제 실패가 가장 많았던 날의 실패 건수는 몇 건인가요?",
-      "hint": "COUNTIFS(날짜, 결제 상태 '실패')나 피벗 테이블을 써 보세요.",
-      "unit": "건",
-      "hash": "eb1e33e8a81b697b75855af6bfcdbcbf7cbbde9f94962ceaec1ed8af21f5a50f"
+      "label": "이상 징후",
+      "guide": "언제, 무엇이 평소와 달랐는지"
     },
     {
-      "id": "q3",
-      "kind": "reason",
-      "text": "그날 무슨 일이 있었을까요? 데이터에서 찾은 근거를 함께 적으세요.",
-      "hint": "그날 기록만 걸러서 시간대, 상품명, 단가를 살펴보세요."
+      "label": "숫자 근거",
+      "guide": "근거 수치 2~3개 (평소와 비교해서)"
+    },
+    {
+      "label": "원인 추정",
+      "guide": "확인한 사실과 추측을 나눠서"
+    },
+    {
+      "label": "다음 조치",
+      "guide": "누가 무엇을 확인·처리하면 좋을지"
     }
   ],
-  "reveal": "eyJhbnN3ZXJzIjogeyJxMSI6ICIxNTY4OTIwMOybkCIsICJxMiI6ICIzMeqxtCJ9LCAiY2F1c2UiOiAiMTEvNSjrqqkpIDEzfjE27Iuc7JeQIOqysOygnCDshJzrsoQg7J6l7JWg6rCAIOuCmOyEnCDqsrDsoJzqsIAg64yA67aA67aEIOyLpO2MqO2WiOyWtOyalC4iLCAiZXZpZGVuY2UiOiBbIjExLzUo66qpKSDsi6TtjKggMzHqsbQgKOuLpOuluCDrgqDsnYAg7ZWY66OoIO2VnCDsnpDrpr/siJgpIiwgIuyLpO2MqOqwgCAxM34xNuyLnOyXkCDrqrDroKQg7J6I7J2MIiwgIuqwmeydgCDsi5zqsITrjIAg7IOB7ZKIIOyiheulmOyZgCDqtIDqs4Tsl4bsnbQg7Iuk7YyoIl19"
+  "reveal": "eyJjYXVzZSI6ICIxMS81KOuqqSkgMTN+MTbsi5zsl5Ag6rKw7KCcIOyEnOuyhCDsnqXslaDqsIAg64KY7IScIOqysOygnOqwgCDrjIDrtoDrtoQg7Iuk7Yyo7ZaI7Ja07JqULiIsICJldmlkZW5jZSI6IFsiMTEvNSjrqqkpIOyLpO2MqCAzMeqxtCAo64uk66W4IOuCoOydgCDtlZjro6gg7ZWcIOyekOumv+yImCkiLCAi7Iuk7Yyo6rCAIDEzfjE27Iuc7JeQIOuqsOugpCDsnojsnYwiLCAi6rCZ7J2AIOyLnOqwhOuMgCDsg4Htkogg7KKF66WY7JmAIOq0gOqzhOyXhuydtCDsi6TtjKgiXX0="
 }

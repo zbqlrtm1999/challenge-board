@@ -1,22 +1,21 @@
 """매주 엑셀 과제 만들기 (가상 운영 데이터 + 숨은 원인).
 
+열린 과제: 숫자 문제 없이 "평소와 다른 점을 찾아 팀장님께 보고하기" 하나만 낸다.
+어디를 볼지 스스로 찾는 것이 연습의 핵심이라, 문제로 길을 나눠 주지 않는다.
+
 사용법 (저장소 맨 위에서):
     python scripts/make_excel.py                 # 이번 주 월요일(한국 시간) 과제
     python scripts/make_excel.py --week 2026-11-16 [--force]
 
 만드는 파일:
-    excel/<주>_엑셀과제.xlsx       상황 · 데이터 · 문제 · 보고서 · 힌트 시트
-    data/excel/<주>.json           보드가 읽는 과제 정보 (정답은 해시, 공개용 정답은 reveal에 base64)
+    excel/<주>_엑셀과제.xlsx       상황 · 데이터 · 보고서 · 힌트 시트
+    data/excel/<주>.json           보드가 읽는 과제 정보 (숨은 원인·근거 수치는 reveal에 base64)
     data/excel/index.json          주차 목록
 
 같은 주는 같은 데이터가 나오도록 주 문자열로 난수를 고정한다.
-정답 정규화(보드 app.js의 normAnswer와 반드시 같아야 함):
-    공백과 , 명 건 원 % 회 개 분 을 지우고, 숫자면 정수는 소수점 없이,
-    아니면 소수 첫째 자리로 반올림(0.5는 올림). 예: "61.0"→"61", "61.25"→"61.3"
 """
 import argparse
 import base64
-import hashlib
 import json
 import random
 import re
@@ -41,6 +40,21 @@ GAMES = [
 WD = ["월", "화", "수", "목", "금", "토", "일"]
 HEAD_FILL = PatternFill("solid", fgColor="A9C6EE")
 ANS_FILL = PatternFill("solid", fgColor="FFF2CC")
+PROMPT = "데이터를 살펴보고 평소와 다른 점을 찾아 팀장님께 보고하세요. 숫자 근거를 함께 적으세요."
+REPORT = [
+    ("한 줄 요약", "팀장님이 이 줄만 읽어도 알 수 있게"),
+    ("이상 징후", "언제, 무엇이 평소와 달랐는지"),
+    ("숫자 근거", "근거 수치 2~3개 (평소와 비교해서)"),
+    ("원인 추정", "확인한 사실과 추측을 나눠서"),
+    ("다음 조치", "누가 무엇을 확인·처리하면 좋을지"),
+]
+HINTS = [
+    "1. 먼저 날짜별로 나눠 보세요. 평소와 크게 다른 날이 있나요?",
+    "2. 그날만 골라 더 잘게 나눠 보세요. 시간대, 유형·상품·사유, 상태 같은 열이 있어요.",
+    "3. 다른 날의 같은 부분과 비교해 보세요. '평소 대비 몇 배'처럼 적으면 근거가 분명해져요.",
+    "4. 데이터로 확인한 것과 내 추측은 나눠서 적으세요.",
+    "도구는 자유예요. 필터, 피벗 테이블, 함수(COUNTIFS 등), 차트 중 편한 것을 쓰세요.",
+]
 
 
 def norm(s):
@@ -104,11 +118,6 @@ def task_inquiry(rng, game, days):
         "headers": ["문의 번호", "날짜", "접수 시각", "시간대(시)", "문의 유형", "처리 상태", "처리 시간(분)"],
         "widths": [12, 12, 10, 10, 12, 10, 13],
         "rows": out,
-        "questions": [
-            ("number", "지난주 '버그' 문의는 모두 몇 건인가요?", "건", "COUNTIF 함수나 '문의 유형' 필터를 써 보세요.", str(len(bug))),
-            ("number", "버그 문의가 가장 많았던 날, 그날의 버그 문의는 몇 건인가요?", "건", "COUNTIFS(날짜, 유형) 또는 피벗 테이블(행: 날짜, 열: 문의 유형)을 써 보세요.", str(per_day[top])),
-            ("reason", "그날 무슨 일이 있었을까요? 데이터에서 찾은 근거를 함께 적으세요.", "", "그날만 시간대별로 나눠 보세요. 처리 상태와 처리 시간도 함께 보세요.", None),
-        ],
         "cause": f"{md(top)} {h0}~{h0 + 3}시에 업데이트 직후 클라이언트 오류가 생겨 버그 문의가 몰렸어요.",
         "evidence": [f"{md(top)} 버그 문의 {per_day[top]}건 (다른 날 평균 {round(sum(others) / len(others))}건)", f"그날 버그 문의 중 {in_win}건이 {h0}~{h0 + 3}시에 접수", "같은 시간대 '대기' 상태와 긴 처리 시간이 몰려 있음"],
     }
@@ -133,7 +142,6 @@ def task_event(rng, game, days):
                 got = "N"
             out.append([u, d, f"{h:02d}:{m:02d}", h, "Y", got])
     out.sort(key=lambda r: (r[1], r[2], r[0]))
-    no = sum(1 for r in out if r[5] == "N")
     rate = {d: (sum(1 for r in out if r[1] == d and r[5] == "Y"), sum(1 for r in out if r[1] == d)) for d in days}
     low = min(days, key=lambda d: rate[d][0] / rate[d][1])
     in_win = sum(1 for r in out if r[1] == low and r[5] == "N" and 14 <= r[3] < 18)
@@ -145,11 +153,6 @@ def task_event(rng, game, days):
         "headers": ["유저 ID", "날짜", "접속 시각", "시간대(시)", "출석", "보상 수령"],
         "widths": [10, 12, 10, 10, 8, 10],
         "rows": out,
-        "questions": [
-            ("number", "보상을 받지 못한 기록(보상 수령 N)은 모두 몇 건인가요?", "건", "COUNTIF로 '보상 수령' 열에서 N을 세 보세요.", str(no)),
-            ("number", "보상 수령률(Y ÷ 전체)이 가장 낮은 날의 수령률은 몇 %인가요? 소수 첫째 자리까지 적으세요.", "%", "날짜별로 COUNTIFS(날짜, Y) ÷ COUNTIF(날짜)를 구해 보세요. 피벗 테이블도 좋아요.", pct(*rate[low])),
-            ("reason", "그날 무슨 일이 있었을까요? 데이터에서 찾은 근거를 함께 적으세요.", "", "그날의 N 기록만 걸러서 '시간대(시)'를 살펴보세요.", None),
-        ],
         "cause": f"{md(low)} 14~18시에 보상 서버 오류가 나서 그 시간에 접속한 유저에게 보상이 지급되지 않았어요.",
         "evidence": [f"{md(low)} 수령률 {pct(*rate[low])}% (다른 날은 98% 이상)", f"그날 N {in_win}건이 모두 14~18시 접속자", "다른 시간대 접속자는 정상 수령"],
     }
@@ -181,17 +184,14 @@ def task_sales(rng, game, days):
             n += 1
             fail = (variant == "outage" and i == bad_day and h0 <= h < h0 + 3 and rng.random() < 0.8) or rng.random() < 0.02
             out.append([f"P{n:06d}", d, f"{h:02d}:{m:02d}", h, p, price, "실패" if fail else "완료"])
-    total = sum(r[5] for r in out if r[6] == "완료")
     if variant == "outage":
         fails = {d: sum(1 for r in out if r[1] == d and r[6] == "실패") for d in days}
         top = max(days, key=lambda d: fails[d])
-        q2 = ("number", "결제 실패가 가장 많았던 날의 실패 건수는 몇 건인가요?", "건", "COUNTIFS(날짜, 결제 상태 '실패')나 피벗 테이블을 써 보세요.", str(fails[top]))
         cause = f"{md(top)} {h0}~{h0 + 3}시에 결제 서버 장애가 나서 결제가 대부분 실패했어요."
         ev = [f"{md(top)} 실패 {fails[top]}건 (다른 날은 하루 한 자릿수)", f"실패가 {h0}~{h0 + 3}시에 몰려 있음", "같은 시간대 상품 종류와 관계없이 실패"]
     else:
         sold = {d: sum(1 for r in out if r[1] == d and r[4] == "성장 패키지" and r[6] == "완료") for d in days}
         top = max(days, key=lambda d: sold[d])
-        q2 = ("number", "'성장 패키지'가 가장 많이 팔린 날, 그날 몇 건 팔렸나요? (결제 완료 기준)", "건", "COUNTIFS(날짜, 상품명, 결제 상태)를 써 보세요.", str(sold[top]))
         cause = f"{md(top)} {h0}시부터 약 4시간 동안 '성장 패키지' 가격이 33,000원이 아닌 3,300원으로 잘못 설정돼 판매가 몰렸어요."
         ev = [f"{md(top)} 성장 패키지 {sold[top]}건 판매 (평소 하루 10건 안팎)", "그날 성장 패키지 단가가 3,300원인 기록이 있음", f"{h0}~{h0 + 4}시에 몰림"]
     return {
@@ -203,11 +203,6 @@ def task_sales(rng, game, days):
         "widths": [12, 12, 10, 10, 16, 11, 10],
         "rows": out,
         "money_col": 6,
-        "questions": [
-            ("number", "지난주 결제 완료 매출 합계는 얼마인가요? (원)", "원", "SUMIF(결제 상태 '완료', 단가)를 써 보세요.", str(total)),
-            q2,
-            ("reason", "그날 무슨 일이 있었을까요? 데이터에서 찾은 근거를 함께 적으세요.", "", "그날 기록만 걸러서 시간대, 상품명, 단가를 살펴보세요.", None),
-        ],
         "cause": cause,
         "evidence": ev,
     }
@@ -235,8 +230,6 @@ def task_sanction(rng, game, days):
             else:
                 result = "해제" if rng.random() < 0.1 else "유지"
             out.append([f"S{n:06d}", f"U{rng.randrange(1, 99999):05d}", d, reason, step, appeal, result])
-    illegal = sum(1 for r in out if r[3] == "불법 프로그램")
-    lifted = sum(1 for r in out if r[6] == "해제")
     per = {d: sum(1 for r in out if r[2] == d and r[3] == "불법 프로그램") for d in days}
     top = max(days, key=lambda d: per[d])
     lifted_top = sum(1 for r in out if r[2] == top and r[6] == "해제")
@@ -249,11 +242,6 @@ def task_sanction(rng, game, days):
         "widths": [12, 10, 12, 14, 10, 10, 8],
         "rows": out,
         "date_col": 3,
-        "questions": [
-            ("number", "지난주 '불법 프로그램' 사유 제재는 모두 몇 건인가요?", "건", "COUNTIF로 '사유' 열을 세 보세요.", str(illegal)),
-            ("number", "이의 신청 결과가 '해제'인 건은 모두 몇 건인가요?", "건", "COUNTIF로 '결과' 열에서 해제를 세 보세요.", str(lifted)),
-            ("reason", "무슨 일이 있었을까요? 데이터에서 찾은 근거를 함께 적으세요.", "", "날짜별로 '불법 프로그램' 건수와 '해제' 건수를 나란히 놓고 보세요 (피벗 테이블).", None),
-        ],
         "cause": f"{md(top)}에 안티치트 탐지 업데이트 오류로 정상 유저가 '불법 프로그램'으로 잘못 제재됐고, 이의 신청 후 대부분 해제됐어요.",
         "evidence": [f"{md(top)} 불법 프로그램 제재 {per[top]}건 (다른 날 하루 30~40건 수준)", f"그날 해제 {lifted_top}건으로 다른 날보다 훨씬 많음", "그날 제재 대부분이 이의 신청 Y"],
     }
@@ -275,9 +263,11 @@ def build_xlsx(t, game, week, path):
         (t["story"], None),
         ("", None),
         ("할 일", Font(bold=True)),
-        ("1. '문제' 시트의 노란 칸에 답을 적으세요. 숫자 답은 보드에 입력하면 바로 채점돼요.", None),
-        ("2. '보고서' 시트를 채우고, 같은 내용을 보드의 보고서 칸에 옮겨 적으세요.", None),
-        ("3. 막히면 마지막 '힌트' 시트를 열어 보세요.", None),
+        (PROMPT, None),
+        ("1. '데이터' 시트를 자유롭게 분석하세요. 어디를 볼지는 직접 정해요.", None),
+        ("2. '보고서' 시트의 노란 칸을 채우고, 같은 내용을 보드의 보고서 칸에 옮겨 적으세요.", None),
+        ("3. 일요일에 AI 코치가 근거 수치가 맞는지, 숨은 원인을 찾았는지 봐요.", None),
+        ("4. 막히면 마지막 '힌트' 시트를 열어 보세요. 답이 아니라 분석 순서만 적혀 있어요.", None),
     ]
     for i, (text, font) in enumerate(lines, 1):
         c = ws.cell(row=i, column=1, value=text)
@@ -305,44 +295,31 @@ def build_xlsx(t, game, week, path):
     ds.freeze_panes = "A2"
     ds.auto_filter.ref = ds.dimensions
 
-    qs = wb.create_sheet("문제")
-    qs.column_dimensions["A"].width = 8
-    qs.column_dimensions["B"].width = 80
-    qs.column_dimensions["C"].width = 30
-    qs.append(["번호", "문제", "내 답"])
-    for c in qs[1]:
-        c.font = Font(bold=True)
-        c.fill = HEAD_FILL
-    for i, (kind, text, unit, _hint, _ans) in enumerate(t["questions"], 1):
-        qs.append([f"Q{i}", text + (f" (단위: {unit})" if unit else ""), ""])
-        qs.cell(row=i + 1, column=2).alignment = Alignment(wrap_text=True, vertical="top")
-        a = qs.cell(row=i + 1, column=3)
-        a.fill = ANS_FILL
-        a.alignment = Alignment(wrap_text=True, vertical="top")
-        if kind == "reason":
-            qs.row_dimensions[i + 1].height = 90
-
     rs = wb.create_sheet("보고서")
-    rs.column_dimensions["A"].width = 18
-    rs.column_dimensions["B"].width = 90
+    rs.column_dimensions["A"].width = 14
+    rs.column_dimensions["B"].width = 34
+    rs.column_dimensions["C"].width = 80
     rs.append(["보고서", f"{t['title']} ({week})"])
     rs["A1"].font = Font(bold=True)
-    for i, label in enumerate(["요약", "주요 수치", "원인 추정과 근거", "제안"], 2):
+    rs.append(["항목", "쓸 내용", "내 보고"])
+    for c in rs[2]:
+        c.font = Font(bold=True)
+        c.fill = HEAD_FILL
+    for i, (label, guide) in enumerate(REPORT, 3):
         rs.cell(row=i, column=1, value=label).font = Font(bold=True)
-        c = rs.cell(row=i, column=2, value="")
+        rs.cell(row=i, column=2, value=guide).alignment = Alignment(wrap_text=True, vertical="top")
+        c = rs.cell(row=i, column=3, value="")
         c.fill = ANS_FILL
         c.alignment = Alignment(wrap_text=True, vertical="top")
         rs.row_dimensions[i].height = 60
 
     hs = wb.create_sheet("힌트")
-    hs.column_dimensions["A"].width = 8
-    hs.column_dimensions["B"].width = 90
-    hs.append(["번호", "힌트 (막힐 때만 보세요)"])
-    for c in hs[1]:
-        c.font = Font(bold=True)
-    for i, q in enumerate(t["questions"], 1):
-        hs.append([f"Q{i}", q[3]])
-        hs.cell(row=i + 1, column=2).alignment = Alignment(wrap_text=True)
+    hs.column_dimensions["A"].width = 100
+    hs.append(["힌트 (막힐 때만 보세요)"])
+    hs["A1"].font = Font(bold=True)
+    for h in HINTS:
+        hs.append([h])
+        hs.cell(row=hs.max_row, column=1).alignment = Alignment(wrap_text=True)
     path.parent.mkdir(parents=True, exist_ok=True)
     wb.save(path)
 
@@ -363,19 +340,12 @@ def make(week, force=False):
     t = TASKS[iso % len(TASKS)](rng, game, days)
     build_xlsx(t, game, week, xlsx)
 
-    questions, answers = [], {}
-    for i, (kind, text, unit, hint, ans) in enumerate(t["questions"], 1):
-        q = {"id": f"q{i}", "kind": kind, "text": text, "hint": hint}
-        if kind == "number":
-            q["unit"] = unit
-            q["hash"] = hashlib.sha256(norm(ans).encode("utf-8")).hexdigest()
-            answers[q["id"]] = norm(ans) + (unit if unit != "원" else "원")
-        questions.append(q)
-    reveal = {"answers": answers, "cause": t["cause"], "evidence": t["evidence"]}
+    reveal = {"cause": t["cause"], "evidence": t["evidence"]}
     info = {
         "week": week, "type": t["type"], "title": t["title"], "game": game[0],
         "situation": t["situation"], "file": f"excel/{week}_엑셀과제.xlsx",
-        "rows": len(t["rows"]), "questions": questions,
+        "rows": len(t["rows"]), "task": PROMPT,
+        "report": [{"label": label, "guide": guide} for label, guide in REPORT],
         "reveal": base64.b64encode(json.dumps(reveal, ensure_ascii=False).encode("utf-8")).decode("ascii"),
     }
     js.parent.mkdir(parents=True, exist_ok=True)
@@ -387,7 +357,7 @@ def make(week, force=False):
     idx["weeks"].append({"week": week, "title": t["title"], "type": t["type"], "game": game[0]})
     idx["weeks"].sort(key=lambda w: w["week"], reverse=True)
     idx_path.write_text(json.dumps(idx, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    print(f"{week}: {t['type']} · {game[0]} · {len(t['rows'])}행 · 정답 {answers}")
+    print(f"{week}: {t['type']} · {game[0]} · {len(t['rows'])}행")
 
 
 if __name__ == "__main__":

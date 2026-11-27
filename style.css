@@ -217,10 +217,6 @@ textarea[readonly] { background: var(--bg); }
 .act-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .field { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; color: var(--muted); min-width: 0; }
 .field > span { font-size: 12.5px; }
-.excelq { display: grid; grid-template-columns: minmax(0, 1fr) 180px; gap: 8px 12px; align-items: center; }
-.excelq .res { font-size: 12.5px; grid-column: 1 / -1; }
-.res.ok { color: var(--ok); }
-.res.no { color: #B4405C; }
 
 .savebar {
   display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
@@ -332,7 +328,6 @@ textarea[readonly] { background: var(--bg); }
   .brand h1 { font-size: 21px; }
   .act-grid, .form-grid, .compare, .bignums, .gmap { grid-template-columns: minmax(0, 1fr); }
   .span2 { grid-column: auto; }
-  .excelq { grid-template-columns: minmax(0, 1fr); }
   .edit-only { display: none !important; }
   .view-note { display: block; font-size: 13px; padding: 10px 14px; border-radius: 10px; background: var(--blush-soft); }
   .tabs {

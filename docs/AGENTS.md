@@ -52,7 +52,7 @@ docs/                             안내 문서 (이 폴더)
     "daily": { "jobs": true },
     "cs": { "answers": { "set1-1-1": "답변 글", "set1-1-2": "…" } },
     "activity": { "menu": "patch", "game": "lol", "fields": { "url": "https://…" }, "body": "본문",
-                  "excel": { "week": "2026-11-16", "answers": { "q1": "282" }, "correct": { "q1": true }, "reason": "…", "report": "…" } },
+                  "excel": { "week": "2026-11-16", "report": "[한 줄 요약] …\n[이상 징후] …\n[숫자 근거] …\n[원인 추정] …\n[다음 조치] …" } },
     "missionManual": { "m-abc": "메모" },
     "memo": "한 줄 메모",
     "reflect": { "set1-1-1": "다음엔 이렇게…" }
@@ -70,11 +70,12 @@ docs/                             안내 문서 (이 폴더)
                     "violation": false, "comment": "고칠 점 한 줄", "change": "지난 답변과 달라진 점 한 줄 (이전 답변이 없으면 생략)" }
     },
     "activity": { "good": "잘한 점 한 줄", "fix": "고칠 점 한 줄", "change": "같은 메뉴 직전 결과물과 달라진 점 (없으면 생략)" },
-    "excel": { "good": "…", "fix": "…" }
+    "excel": { "found": true, "good": "…", "fix": "…" }
   }
 }
 ```
 `score` = 체크된 항목 수 − (위반이면 `pack.violation.penalty`), 최소 0.
+`excel.found` = 보고서가 숨은 원인(날짜와 핵심 패턴)을 짚었는지. 통계 탭 "엑셀 원인 찾기" 카드가 이 값을 센다.
 
 ## 일요일 AI 코치 채점 (매주 일요일 23:50 한국 시간)
 
@@ -85,7 +86,8 @@ docs/                             안내 문서 (이 폴더)
 3. 날짜마다:
    - **CS 답변:** `cs.answers`의 문의 id로 `packs/<팩>/pack.json`에서 문의(`text`, `facts`), 그 세트의 그 게임 `events`, `commonPolicy`와 게임 `policy`를 찾는다. `rubric` 5항목을 답변에 "들어 있는지"만 보고 true/false로 판정한다(잘 썼는지가 아니라 있는지). 정책에 없는 약속이나 개인정보 요청이 있으면 `violation: true`. `comment`는 가장 중요한 고칠 점 한 줄. 같은 문의에 대한 직전 답변이 있으면 `change`에 달라진 점 한 줄.
    - **활동 (`activity.menu`가 patch/community/notice):** 점수 없이 `good`, `fix` 한 줄씩. 같은 메뉴의 직전 결과물이 있으면 `change`.
-   - **엑셀 (`menu`가 excel):** `data/excel/<주>.json`의 `reveal`(base64 JSON: 정답, 숨은 원인, 근거)과 사용자의 `reason`·`report`를 비교해 `excel.good`, `excel.fix`. 원인을 맞혔는지보다 **데이터에서 근거를 댔는지**를 본다.
+   - **엑셀 (`menu`가 excel):** 열린 과제(숫자 문제 없음)라 사용자의 `report` 하나만 본다. `data/excel/<주>.json`의 `reveal`(base64 JSON: 숨은 원인 `cause`, 근거 수치 `evidence`)과 비교한다. 근거 수치가 맞는지 의심되면 `excel/<주>_엑셀과제.xlsx`의 '데이터' 시트에서 직접 계산해 확인한다. 보는 순서: ① 숨은 원인을 짚었는지 → `excel.found` true/false ② 숫자 근거가 데이터와 맞고 평소와 비교했는지 ③ 확인한 사실과 추측을 나눴는지 ④ 다음 조치가 구체적인지. 원인을 못 찾았어도 근거가 탄탄하면 `good`에서 칭찬한다. `fix`는 가장 중요한 한 가지.
+   - 예전 형식 기록(`excel.answers`·`reason`이 있는 것)은 `reason`과 `report`를 합쳐 같은 방식으로 본다.
 4. `data/feedback.json`에 날짜별로 추가한다(이미 있는 날짜는 건드리지 않는다). `records.json`은 고치지 않는다.
 5. 커밋 메시지 `AI 코치 채점: <첫 날짜>~<마지막 날짜>`로 커밋하고 push. 채점할 날짜가 없으면 아무것도 하지 않는다.
 
@@ -95,7 +97,7 @@ docs/                             안내 문서 (이 폴더)
 
 - **새 CS 문의 세트 만들기:** `pack.json`의 `sets`에 같은 형식으로 추가한다(요일 7개 × 3문의, 7개 게임 모두 `events`). 날짜는 "어제", "지난주 토요일"처럼 상대적으로 쓴다(매주 반복되므로). 문의 id는 `<세트id>-<요일>-<번호>`. 기존 세트는 지우지 않는다(지난 답변이 그 id를 가리킨다).
 - **게임 목록 바꾸기:** 사용자는 보드 설정 탭에서 바꾼다. 기본 목록은 `real-games.json`.
-- **엑셀 과제 종류 추가:** `scripts/make_excel.py`의 `TASKS`에 함수 추가. 같은 주는 같은 결과가 나오도록 `rng`만 쓴다. 정답은 데이터에서 직접 계산한다. 정답 정규화(`norm`)를 바꾸면 `app.js`의 `normAnswer`도 똑같이 바꾼다.
+- **엑셀 과제 종류 추가:** `scripts/make_excel.py`의 `TASKS`에 함수 추가. 같은 주는 같은 결과가 나오도록 `rng`만 쓴다. 숨은 원인(`cause`)과 근거 수치(`evidence`)는 데이터에서 직접 계산한다. 숫자 문제는 만들지 않는다(열린 과제, DECISIONS.md 참고). 보고서 항목(`REPORT`)을 바꾸면 `app.js`의 `EXCEL_REPORT`도 똑같이 바꾼다.
 - **엑셀 과제 다시 만들기:** GitHub → Actions → "주간 엑셀 과제 만들기" → Run workflow (주 입력 가능). 로컬: `pip install openpyxl` 후 `python scripts/make_excel.py --week 2026-11-23`.
 - **다른 직무 팩 만들기:** `packs/<새 팩>/`에 `pack.json`, `activities.json`, `real-games.json`을 같은 형식으로 만들고 `settings.json`의 `pack`을 바꾼다. 채점 기준(`rubric`)은 그 직무에 맞게 5개 안팎으로.
 

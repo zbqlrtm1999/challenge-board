@@ -264,7 +264,7 @@ function csCount(rec, date) {
 function activityDone(rec) {
   const a = rec?.activity;
   if (!a?.menu) return false;
-  if (a.menu === 'excel') return !!(a.excel && (Object.values(a.excel.answers || {}).some((v) => String(v).trim()) || (a.excel.reason || '').trim()));
+  if (a.menu === 'excel') return excelWritten(a.excel?.report);
   const tpl = (menuById(a.menu)?.template || '').trim();
   const body = (a.body || '').trim();
   return !!body && body !== tpl;
@@ -339,20 +339,20 @@ function monthRate() {
   return days ? Math.round((sum / days) * 100) : null;
 }
 
-// ───────── 엑셀 과제 ─────────
-function normAnswer(s) {
-  let t = String(s ?? '').replace(/[\s,명건원%회개분]/g, '');
-  if (/^-?\d+(\.\d+)?$/.test(t)) {
-    const n = Number(t);
-    if (Number.isInteger(n)) return String(n);
-    const r = Math.round(n * 10) / 10;
-    return Number.isInteger(r) ? String(r) : r.toFixed(1);
-  }
-  return t;
+// ───────── 엑셀 과제 (열린 과제: 데이터를 보고 보고서 하나) ─────────
+const EXCEL_REPORT = [
+  { label: '한 줄 요약', guide: '팀장님이 이 줄만 읽어도 알 수 있게' },
+  { label: '이상 징후', guide: '언제, 무엇이 평소와 달랐는지' },
+  { label: '숫자 근거', guide: '근거 수치 2~3개 (평소와 비교해서)' },
+  { label: '원인 추정', guide: '확인한 사실과 추측을 나눠서' },
+  { label: '다음 조치', guide: '누가 무엇을 확인·처리하면 좋을지' },
+];
+// 틀의 [항목] 표시만 있고 내용이 없으면 쓴 것으로 치지 않는다
+function excelWritten(report) {
+  return !!String(report || '').replace(/\[[^\]\n]*\]/g, '').trim();
 }
-async function sha256(s) {
-  const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
-  return [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, '0')).join('');
+function excelReportTemplate(task) {
+  return (task?.report || EXCEL_REPORT).map((r) => `[${r.label}] `).join('\n');
 }
 function excelEntry(date) {
   const mon = mondayOf(date);
@@ -411,8 +411,6 @@ function toMarkdown(rec) {
     for (const f of m?.fields || []) if ((act.fields?.[f.id] || '').trim()) L.push(`- ${f.label}: ${act.fields[f.id]}`);
     if (act.menu === 'excel' && act.excel) {
       L.push(`- 과제 주차: ${act.excel.week}`);
-      for (const [k, v] of Object.entries(act.excel.answers || {})) L.push(`- ${k}: ${v}${act.excel.correct?.[k] === true ? ' ✓' : act.excel.correct?.[k] === false ? ' ✗' : ''}`);
-      if (act.excel.reason) L.push('', '### 추론', act.excel.reason);
       if (act.excel.report) L.push('', '### 보고서', act.excel.report);
     } else L.push('', act.body || '');
     L.push('');
@@ -532,7 +530,7 @@ function rubricDetails() {
   return `<details class="policy" style="border:0;padding:0"><summary>ℹ️ 채점 기준</summary>
     <ul>${rub.map((r) => `<li><b>${esc(r.name)}</b>: ${esc(r.desc)}</li>`).join('')}
     <li><b>${esc(S.pack?.violation?.name || '정책 위반')}</b>: ${esc(S.pack?.violation?.desc || '')} (−${S.pack?.violation?.penalty ?? 1})</li>
-    <li>활동 글은 점수 없이 잘한 점·고칠 점 두 줄, 엑셀 숫자 문제는 정답 일치 여부로 봐요.</li></ul></details>`;
+    <li>활동 글은 점수 없이 잘한 점·고칠 점 두 줄로 봐요. 엑셀 보고서는 숨은 원인을 찾았는지, 숫자 근거가 맞는지, 사실과 추측을 나눴는지 봐요.</li></ul></details>`;
 }
 function eventsHtml(set, game) {
   const evs = set?.events?.[game?.id] || [];
@@ -744,21 +742,17 @@ function excelHtml(date, d, ed) {
   if (!task) return '<p class="sub">과제를 불러오는 중…</p>';
   const ex = d.activity.excel || {};
   const saved = S.records[date]?.activity?.excel;
-  const reveal = saved && (Object.keys(saved.answers || {}).length || saved.reason) ? decodeReveal(task.reveal) : null;
+  const reveal = excelWritten(saved?.report) ? decodeReveal(task.reveal) : null;
+  const parts = task.report || EXCEL_REPORT;
   return `<div class="game-box">
       <div class="game-row"><span class="label">${md(task.week)} 주 과제 · ${esc(task.type)}</span><span class="gname">${esc(task.title)}</span><span class="meta">${esc(task.game)}</span></div>
       <div class="event"><p style="color:var(--ink)">${esc(task.situation)}</p>
-      <div class="row" style="margin-top:6px"><a class="btn small" href="${esc(task.file)}" download>엑셀 과제 내려받기</a><span class="sub">상황 · 데이터 · 문제 · 보고서 틀 · 힌트가 들어 있어요</span></div></div>
+      <p style="color:var(--ink)"><b>할 일:</b> ${esc(task.task || '데이터를 살펴보고 평소와 다른 점을 찾아 팀장님께 보고하세요. 숫자 근거를 함께 적으세요.')}</p>
+      <div class="row" style="margin-top:6px"><a class="btn small" href="${esc(task.file)}" download>엑셀 과제 내려받기</a><span class="sub">상황 · 데이터 · 보고서 틀 · 힌트가 들어 있어요</span></div></div>
     </div>
-    ${(task.questions || []).map((q, i) => q.kind === 'number' ? `<div class="excelq">
-        <label for="ex-${esc(q.id)}"><b class="disp">Q${i + 1}.</b> ${esc(q.text)}</label>
-        <input type="text" id="ex-${esc(q.id)}" data-bind="excel:${esc(q.id)}" value="${esc(ex.answers?.[q.id] || '')}" placeholder="답 (${esc(q.unit || '숫자')})" ${ed ? '' : 'readonly'}>
-        ${ex.correct?.[q.id] === true ? '<span class="res ok">✓ 정답이에요</span>' : ex.correct?.[q.id] === false ? '<span class="res no">✗ 다시 확인해 보세요</span>' : ''}
-      </div>` : `<label class="field"><span><b class="disp" style="color:var(--ink)">Q${i + 1}.</b> ${esc(q.text)}</span>
-        <textarea id="ex-reason" data-bind="excel:reason" rows="4" ${ed ? '' : 'readonly'}>${esc(ex.reason || '')}</textarea></label>`).join('')}
-    <label class="field"><span>보고서 (요약 / 주요 수치 / 원인 추정과 근거 / 제안)</span><textarea id="ex-report" data-bind="excel:report" rows="5" ${ed ? '' : 'readonly'}>${esc(ex.report || '')}</textarea></label>
-    ${ed ? '<div class="row"><button class="btn small" type="button" data-act="excel-check">숫자 정답 확인</button><span class="sub">저장하면 정답과 숨은 원인이 공개돼요.</span></div>' : ''}
-    ${reveal ? `<div class="banner info"><b class="disp">정답과 숨은 원인</b><br>${Object.entries(reveal.answers || {}).map(([k, v]) => `${esc(k.toUpperCase())}: ${esc(v)}`).join(' · ')}<br>${esc(reveal.cause || '')}${(reveal.evidence || []).length ? `<br><span class="sub">근거: ${reveal.evidence.map(esc).join(' / ')}</span>` : ''}</div>` : ''}
+    <label class="field"><span>보고서 (${parts.map((r) => esc(r.label)).join(' / ')})</span><textarea id="ex-report" data-bind="excel:report" rows="9" placeholder="${esc(parts.map((r) => `[${r.label}] ${r.guide}`).join('\n'))}" ${ed ? '' : 'readonly'}>${esc(ex.report || '')}</textarea></label>
+    ${ed ? '<div class="row"><button class="btn small" type="button" data-act="excel-tpl">보고서 틀 넣기</button><span class="sub">저장하면 숨은 원인과 근거 수치가 공개돼요. 그 뒤엔 일요일 채점 전까지 고칠 수 있어요.</span></div>' : ''}
+    ${reveal ? `<div class="banner info"><b class="disp">숨은 원인</b><br>${esc(reveal.cause || '')}${(reveal.evidence || []).length ? `<br><span class="sub">근거: ${reveal.evidence.map(esc).join(' / ')}</span>` : ''}</div>` : ''}
     ${S.feedback[date]?.excel ? aiBlock(S.feedback[date].excel, 'act') : ''}`;
 }
 
@@ -820,7 +814,7 @@ function outputsHtml(m, ents) {
 function outputText(rec) {
   const a = rec.activity || {};
   const m = menuById(a.menu);
-  if (a.menu === 'excel') return [`엑셀 과제 ${a.excel?.week || ''}`, ...Object.entries(a.excel?.answers || {}).map(([k, v]) => `${k.toUpperCase()}: ${v}`), a.excel?.reason ? '추론: ' + a.excel.reason : '', a.excel?.report ? '보고서: ' + a.excel.report : ''].filter(Boolean).join('\n');
+  if (a.menu === 'excel') return [`엑셀 과제 ${a.excel?.week || ''}`, a.excel?.report || ''].filter(Boolean).join('\n');
   const fields = (m?.fields || []).map((f) => (a.fields?.[f.id] ? `${f.label}: ${(m.prefix && f.id === 'title' ? m.prefix : '')}${a.fields[f.id]}` : '')).filter(Boolean);
   return [...fields, a.body || ''].join('\n');
 }
@@ -977,14 +971,16 @@ function viewStats() {
   for (const d of sortedDates()) { const r = S.records[d]; if (!isPractice(d) && activityDone(r) && r.activity.game in counts) counts[r.activity.game]++; }
   const usedN = Object.values(counts).filter((n) => n > 0).length;
   const maxC = Math.max(1, ...Object.values(counts));
-  // 엑셀 정답률
+  // 엑셀 분석: AI 코치가 채점한 보고서 중 숨은 원인을 찾은 비율 (feedback.excel.found)
   const byType = {};
   let ok = 0, all = 0;
   for (const d of sortedDates()) {
     const ex = S.records[d].activity?.excel;
-    if (!ex?.correct || isPractice(d)) continue;
+    const found = S.feedback[d]?.excel?.found;
+    if (!ex || typeof found !== 'boolean' || isPractice(d)) continue;
     const type = (S.excelIndex.weeks || []).find((w) => w.week === ex.week)?.type || '기타';
-    for (const v of Object.values(ex.correct)) { all++; if (v) ok++; (byType[type] ||= [0, 0])[1]++; if (v) byType[type][0]++; }
+    all++; if (found) ok++;
+    (byType[type] ||= [0, 0])[1]++; if (found) byType[type][0]++;
   }
   const mini = (key, title, head, body) => `<div class="mini"><span class="label">${title}</span><b>${head}</b>
     <button class="linkbtn" type="button" data-act="mini" data-id="${key}" aria-expanded="${!!S.ui.mini[key]}">${S.ui.mini[key] ? '접기 ▴' : '펼치기 ▾'}</button>${S.ui.mini[key] ? body : ''}</div>`;
@@ -995,7 +991,7 @@ function viewStats() {
   <div class="minis">
     ${mini('streak', '항목별 연속일', top && top.cur ? `${esc(top.it.name)} ${top.cur}일` : '–', items.map((x) => hbar(x.it.name, x.cur, Math.max(1, ...items.map((y) => y.best)), `${x.cur}/${x.best}`)).join('') + '<span class="sub">지금 연속 / 최고 기록</span>')}
     ${mini('games', '게임별 활동', `${rot.length}개 중 ${usedN}개`, rot.map((g) => hbar(g.name, counts[g.id], maxC)).join(''))}
-    ${mini('excel', '엑셀 정답률', all ? Math.round((ok / all) * 100) + '%' : '–', Object.keys(byType).length ? Object.entries(byType).map(([t, [o, n]]) => hbar(t, o, n, Math.round((o / n) * 100) + '%')).join('') : '<span class="sub">아직 푼 과제가 없어요</span>')}
+    ${mini('excel', '엑셀 원인 찾기', all ? `${ok}/${all}` : '–', Object.keys(byType).length ? Object.entries(byType).map(([t, [o, n]]) => hbar(t, o, n, `${o}/${n}`)).join('') + '<span class="sub">숨은 원인을 찾은 보고서 / 채점된 보고서</span>' : '<span class="sub">아직 채점된 보고서가 없어요</span>')}
   </div>`;
 }
 
@@ -1086,7 +1082,7 @@ const GUIDE = {
     ['big', '큰 숫자 3개', '연속 기록 · 달성률 · CS 점수', 'span3', '연속 기록, 이번 달 달성률, CS 평균 점수 변화(첫 주 → 최근 주)예요.'],
     ['grass', '잔디', '하루 한 칸', 'span2', '색이 진할수록 일일 항목을 많이 한 날이에요. 분홍 칸은 바쁜 날 모드로 가볍게 완료한 날이에요. 칸을 누르면 그날 기록으로 가요.'],
     ['chart', 'CS 점수 추이', '주별 평균', '', '매주 일요일 23:50 AI 코치 채점이 끝나면 점이 하나씩 생겨요.'],
-    ['minis', '작은 카드 3개', '항목별 연속일 · 게임별 활동 · 엑셀 정답률', 'span3', '핵심 숫자가 보이고, [펼치기]를 누르면 자세한 막대그래프가 나와요.'],
+    ['minis', '작은 카드 3개', '항목별 연속일 · 게임별 활동 · 엑셀 원인 찾기', 'span3', '핵심 숫자가 보이고, [펼치기]를 누르면 자세한 막대그래프가 나와요. 엑셀 원인 찾기는 일요일 채점에서 숨은 원인을 찾았다고 본 보고서 수예요.'],
   ] },
   settings: { name: '설정', blocks: [
     ['basic', '기본 정보', '제목 · 소개 · 시작일', 'span2', '시작일을 바꾸면 게임 로테이션, 문의 세트, 통계가 그 날짜 기준으로 다시 계산돼요.'],
@@ -1165,10 +1161,8 @@ document.addEventListener('input', (e) => {
       else if (rest[0] === 'game') d.activity.game = v;
       break;
     case 'excel': {
-      const ex = d.activity.excel ||= { answers: {}, correct: {} };
-      if (rest[0] === 'reason') ex.reason = v;
-      else if (rest[0] === 'report') ex.report = v;
-      else { ex.answers[rest[0]] = v; delete ex.correct?.[rest[0]]; }
+      const ex = d.activity.excel ||= { week: excelEntry(S.date)?.week || null };
+      if (rest[0] === 'report') ex.report = v;
       break;
     }
     case 'memo': d.memo = v; break;
@@ -1243,21 +1237,17 @@ document.addEventListener('click', async (e) => {
       if (!canEdit(S.date)) return;
       const m = menuById(id);
       d.activity.menu = id;
-      if (m?.type === 'excel') { const ent = excelEntry(S.date); d.activity.excel ||= { week: ent?.week || null, answers: {}, correct: {} }; }
+      if (m?.type === 'excel') { const ent = excelEntry(S.date); d.activity.excel ||= { week: ent?.week || null }; }
       else if (!(d.activity.body || '').trim() || menus().some((x) => (x.template || '').trim() === (d.activity.body || '').trim())) d.activity.body = m?.template || '';
       if (!d.activity.game) d.activity.game = rotationGame(S.date)?.game?.id || '';
       saveDraftSoon(); render(); break;
     }
-    case 'excel-check': {
+    case 'excel-tpl': {
+      if (!canEdit(S.date)) return;
       const ent = excelEntry(S.date), task = ent && S.excelCache[ent.week];
-      if (!task) return;
-      const ex = d.activity.excel ||= { answers: {}, correct: {} };
-      ex.week = ent.week; ex.correct ||= {};
-      for (const q of task.questions.filter((x) => x.kind === 'number')) {
-        const v = ex.answers?.[q.id];
-        if (v == null || !String(v).trim()) { delete ex.correct[q.id]; continue; }
-        ex.correct[q.id] = (await sha256(normAnswer(v))) === q.hash;
-      }
+      const ex = d.activity.excel ||= { week: ent?.week || null };
+      if ((ex.report || '').trim()) return; // 이미 쓴 내용은 덮어쓰지 않는다
+      ex.report = excelReportTemplate(task);
       saveDraftSoon(); render(); break;
     }
     case 'mm-toggle':
