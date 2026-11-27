@@ -938,7 +938,7 @@ function outputText(a, menuId) {
   a ||= {};
   const m = menuById(menuId);
   if (m?.type === 'excel') return [`엑셀 과제 ${a.week || ''}`, a.report || ''].filter(Boolean).join('\n');
-  const fields = (m?.fields || []).map((f) => (a.fields?.[f.id] ? `${f.label}: ${(m.prefix && f.id === 'title' ? m.prefix : '')}${a.fields[f.id]}` : '')).filter(Boolean);
+  const fields = (m?.fields || []).map((f) => (a.fields?.[f.id] ? `${f.label.replace(/\s*\(.*\)$/, '')}: ${(m.prefix && f.id === 'title' ? m.prefix : '')}${a.fields[f.id]}` : '')).filter(Boolean);
   return [...fields, a.body || ''].join('\n');
 }
 function missionForm(f) {
@@ -1035,7 +1035,7 @@ function dateView() {
     return `<div class="acc ${open ? 'open' : ''}" id="rec-${d}">
       <div class="acc-head" role="button" tabindex="0" data-act="acc" data-key="${esc(k)}">
         <span class="num">${md(d)} ${WD[pd(d).getUTCDay()]}</span><span class="tag sky num">${l.done}/${l.total}</span>
-        <span class="peek">${r.busy ? '바쁜 날 · ' : ''}${r.late ? '⏱ 늦은 기록 · ' : ''}${isPractice(d) ? '연습 · ' : ''}${doneActs(r).map((id) => esc(menuById(id)?.name || id)).join(', ')}${r.memo ? ' · ' + esc(r.memo) : ''}</span><span class="chev">›</span></div>
+        <span class="peek">${[r.busy ? '바쁜 날' : '', r.late ? '⏱ 늦은 기록' : '', isPractice(d) ? '연습' : '', doneActs(r).map((id) => esc(menuById(id)?.name || id)).join(', '), r.memo ? esc(r.memo) : ''].filter(Boolean).join(' · ')}</span><span class="chev">›</span></div>
       ${open ? `<div class="acc-body">
         <div class="checks">${S.settings.dailyItems.map((it) => `<span class="${itemDone(it, r, d) ? 'on' : ''}">${itemDone(it, r, d) ? '✓' : '·'} ${esc(it.name)}</span>`).join('')}</div>
         ${qs.map((q) => `<div class="stack" style="gap:4px"><span class="sub"><span class="tag">${esc(q.type)}</span> ${esc(q.text)}</span>
@@ -1058,19 +1058,45 @@ function bigNums() {
     <div class="bignum"><span class="label">CS 평균 점수</span><b>${wk.length ? `${wk[0].avg.toFixed(1)} → ${wk[wk.length - 1].avg.toFixed(1)}` : '–'}</b><span class="sub">${wk.length ? '첫 주 → 최근 주' : '첫 채점 뒤에 보여요'}</span></div>
   </div>`;
 }
-function grassHtml(weeks = 16) {
-  const endMon = mondayOf(S.today);
-  let from = addDays(endMon, -7 * (weeks - 1));
-  const cells = [];
-  for (let d = from; d <= addDays(endMon, 6); d = addDays(d, 1)) {
-    if (d > S.today) { cells.push('<span class="cell pad"></span>'); continue; }
-    if (d < start()) { cells.push(`<span class="cell pre" title="${md(d)} 시작 전"></span>`); continue; }
-    const l = dayLevel(d);
-    const lv = l.done === 0 ? '' : l.light ? 'lt' : l.done === l.total ? 'l4' : 'l' + Math.max(1, Math.min(3, Math.ceil((l.done / l.total) * 3)));
-    cells.push(`<button class="cell ${lv}" type="button" data-act="grass" data-date="${d}" title="${md(d)} · ${l.done}/${l.total}" aria-label="${md(d)} ${l.done}/${l.total} 완료"></button>`);
-  }
-  return `<div class="grass-wrap"><div class="grass">${cells.join('')}</div></div>
-    <div class="legend"><span><i style="background:var(--g4)"></i>모두 함</span><span><i style="background:var(--g2)"></i>일부</span><span><i style="background:var(--glight)"></i>바쁜 날</span><span><i style="background:var(--g0)"></i>안 함</span><span>칸을 누르면 그날 기록으로 가요</span></div>`;
+// 주간 기록표: 한 주 = 한 줄. 매일 활동 7칸 + 주간 과제 + 그 주 CS·매일 활동 개수
+function weekTableHtml(limit = 8) {
+  const all = [];
+  for (let w = mondayOf(start()); w <= mondayOf(S.today); w = addDays(w, 7)) all.push(w);
+  all.reverse();
+  const shown = S.ui.wtAll ? all : all.slice(0, limit);
+  const wl = weeklyMenus(), dl = dailyMenus();
+  const short = (m) => esc(m.short || m.name.split(/[ ·]/)[0]);
+  const dayCell = (d) => {
+    if (d > S.today) return '<td><span class="dot pad"></span></td>';
+    if (d < start()) return `<td><span class="dot pre" title="${md(d)} 시작 전"></span></td>`;
+    const r = S.records[d], l = dayLevel(d);
+    const lv = l.done === 0 ? '' : l.light ? 'lt' : l.done === l.total ? 'l4' : 'l2';
+    const tip = `${md(d)} · CS ${csCount(r, d)}/3${dl.map((m) => ` · ${m.name} ${actDone(r, m.id) ? '✓' : '–'}`).join('')}${r?.busy ? ' · 바쁜 날' : ''}`;
+    return `<td><button class="dot ${lv}" type="button" data-act="grass" data-date="${d}" title="${esc(tip)}" aria-label="${esc(tip)}"></button></td>`;
+  };
+  const rows = shown.map((w) => {
+    const from = w < start() ? start() : w, sun = addDays(w, 6);
+    const x = tally(from, sun);
+    const days = Math.max(0, Math.min(7, diffDays(from, S.today < sun ? S.today : sun) + 1));
+    return `<tr${w === mondayOf(S.today) ? ' class="now"' : ''}><th scope="row">${md(w)} 주</th>
+      ${Array.from({ length: 7 }, (_, i) => dayCell(addDays(w, i))).join('')}
+      ${wl.map((m, i) => { const when = weekDoneDate(m.id, w); return `<td class="${i === 0 ? 'sep' : ''}">${when ? `<span class="wk on" title="${esc(m.name)} ${md(when)}">✓</span>` : '<span class="wk">·</span>'}</td>`; }).join('')}
+      <td class="sep num">${x.cs}<small>/${days * 3}</small></td>
+      ${dl.map((m) => `<td class="num">${x.acts[m.id] || 0}<small>/${days}</small></td>`).join('')}
+    </tr>`;
+  }).join('');
+  const tot = tally(start(), S.today);
+  return `<div class="wtable-wrap"><table class="wtable">
+    <thead><tr><th scope="col"></th>${['월', '화', '수', '목', '금', '토', '일'].map((x) => `<th scope="col">${x}</th>`).join('')}
+      ${wl.map((m, i) => `<th scope="col" class="${i === 0 ? 'sep' : ''}" title="${esc(m.name)}">${short(m)}</th>`).join('')}
+      <th scope="col" class="sep">CS</th>${dl.map((m) => `<th scope="col" title="${esc(m.name)}">${short(m)}</th>`).join('')}</tr></thead>
+    <tbody>${rows || `<tr><td colspan="${10 + wl.length + dl.length}" class="sub">챌린지가 시작되면 보여요</td></tr>`}</tbody>
+    <tfoot><tr><th scope="row">합계</th><td colspan="7" class="sub">다 끝낸 날 <b class="num">${tot.days}</b>일 · 주간 과제 모두 한 주 <b class="num">${fullWeeks()}</b>주</td>
+      ${wl.map((m, i) => `<td class="num ${i === 0 ? 'sep' : ''}">${tot.acts[m.id] || 0}</td>`).join('')}
+      <td class="num sep">${tot.cs}</td>${dl.map((m) => `<td class="num">${tot.acts[m.id] || 0}</td>`).join('')}</tr></tfoot>
+  </table></div>
+  <div class="legend"><span><i style="background:var(--g4)"></i>일일 항목 다 함</span><span><i style="background:var(--g2)"></i>일부</span><span><i style="background:var(--glight)"></i>바쁜 날</span><span><i style="background:var(--g0)"></i>안 함</span><span><b style="color:var(--ok)">✓</b> 주간 과제 끝냄</span><span>동그라미를 누르면 그날 기록으로 가요</span></div>
+  ${all.length > limit ? `<div class="row"><button class="btn small ghost" type="button" data-act="wt-all">${S.ui.wtAll ? '최근 ' + limit + '주만 보기' : `처음부터 모두 보기 (${all.length}주)`}</button></div>` : ''}`;
 }
 function chartHtml() {
   const wk = weeklyCsAvg();
@@ -1114,10 +1140,6 @@ function viewStats() {
   }
   const usedN = Object.values(counts).filter((n) => n > 0).length;
   const maxC = Math.max(1, ...Object.values(counts));
-  // 주간 과제: 시작 주부터 이번 주까지, 주마다 몇 개 끝냈는지
-  const weeks = [];
-  for (let w = mondayOf(start()); w <= mondayOf(S.today); w = addDays(w, 7)) weeks.push({ week: w, ...weekProgress(w) });
-  const thisWeek = weeks[weeks.length - 1];
   // 엑셀 분석: AI 코치가 채점한 보고서 중 숨은 원인을 찾은 비율 (feedback.acts.excel.found)
   const byType = {};
   let ok = 0, all = 0;
@@ -1133,12 +1155,11 @@ function viewStats() {
     <button class="linkbtn" type="button" data-act="mini" data-id="${key}" aria-expanded="${!!S.ui.mini[key]}">${S.ui.mini[key] ? '접기 ▴' : '펼치기 ▾'}</button>${S.ui.mini[key] ? body : ''}</div>`;
   const hbar = (lbl, n, max, txt) => `<div class="hbar"><span class="lbl">${esc(lbl)}</span><span class="t"><span style="width:${Math.round((n / max) * 100)}%"></span></span><span class="n num">${txt ?? n}</span></div>`;
   return `${bigNums()}
+  <section class="card"><div class="card-head"><h2>주간 기록표</h2><span class="sub">한 주 = 한 줄 · 매일 활동과 주간 과제를 함께</span></div>${weekTableHtml()}</section>
   ${activityTable()}
-  <section class="card"><div class="card-head"><h2>잔디</h2><span class="sub">최근 16주</span></div>${grassHtml()}</section>
   <section class="card"><div class="card-head"><h2>CS 점수 추이</h2><span class="sub">주별 AI 코치 평균 (5점 만점)</span></div>${chartHtml()}</section>
   <div class="minis">
     ${mini('streak', '항목별 연속일', top && top.cur ? `${esc(top.it.name)} ${top.cur}일` : '–', items.map((x) => hbar(x.it.name, x.cur, Math.max(1, ...items.map((y) => y.best)), `${x.cur}/${x.best}`)).join('') + '<span class="sub">지금 연속 / 최고 기록</span>')}
-    ${mini('weekly', '주간 과제', thisWeek ? `이번 주 ${thisWeek.done}/${thisWeek.total}` : '–', weeks.length ? weeks.slice(-8).map((w) => hbar(`${md(w.week)} 주`, w.done, Math.max(1, w.total), `${w.done}/${w.total}`)).join('') + '<span class="sub">최근 8주 · 패치노트, 커뮤니티, 엑셀</span>' : '<span class="sub">챌린지가 시작되면 보여요</span>')}
     ${mini('games', '게임별 활동', `${rot.length}개 중 ${usedN}개`, rot.map((g) => hbar(g.name, counts[g.id], maxC)).join(''))}
     ${mini('excel', '엑셀 원인 찾기', all ? `${ok}/${all}` : '–', Object.keys(byType).length ? Object.entries(byType).map(([t, [o, n]]) => hbar(t, o, n, `${o}/${n}`)).join('') + '<span class="sub">숨은 원인을 찾은 보고서 / 채점된 보고서</span>' : '<span class="sub">아직 채점된 보고서가 없어요</span>')}
   </div>`;
@@ -1166,7 +1187,7 @@ function viewSettings() {
       <input type="text" data-bind="item:${i}:name" value="${esc(it.name)}" aria-label="항목 이름" ${it.type ? 'readonly' : ''}>
       <input type="text" data-bind="item:${i}:note" value="${esc(it.note || '')}" aria-label="설명" placeholder="설명 (선택)">
       ${it.type ? '<span class="sub">고정</span>' : `<button class="btn small ghost danger edit-only" type="button" data-act="item-del" data-i="${i}">삭제</button>`}</div>`).join('')}</div>
-    <p class="sub">CS 문의와 공지 작성은 고정이에요. 추가한 항목은 오늘 탭에서 눌러서 체크해요. 주간 과제(패치노트·커뮤니티·엑셀)는 일일 항목이 아니라 오늘 탭의 "이번 주 과제"에 있어요.</p></section>
+    <p class="sub">CS 문의와 공지 작성은 고정이에요. 추가한 항목은 오늘 탭에서 눌러서 체크해요. 주간 과제(패치노트·커뮤니티·엑셀)는 일일 항목이 아니라 오늘 탭의 [주간 활동]에 있어요.</p></section>
 
   <section class="card"><div class="card-head"><h2>게임 목록 · 로테이션 순서</h2><span class="sub">매주 월요일 다음 게임으로 바뀌어요</span></div>
     <div class="list-edit">${f.gameRotation.map((id, i) => { const g = gName(id); return g ? `<div class="li g"><span class="num sub">${i + 1}</span>
@@ -1234,9 +1255,9 @@ const GUIDE = {
   stats: { name: '통계', blocks: [
     ['big', '큰 숫자 3개', '연속 기록 · 달성률 · CS 점수', 'span3', '연속 기록, 이번 달 달성률, CS 평균 점수 변화(첫 주 → 최근 주)예요.'],
     ['table', '활동량', '이번 주 · 이번 달 · 전체', 'span3', 'CS 답변, 공지, 패치노트, 커뮤니티, 엑셀, 다 끝낸 날을 이번 주 · 이번 달 · 전체(시작일부터)로 세어 표로 보여 줘요.'],
-    ['grass', '잔디', '하루 한 칸', 'span2', '색이 진할수록 일일 항목을 많이 한 날이에요. 분홍 칸은 바쁜 날 모드로 가볍게 완료한 날이에요. 칸을 누르면 그날 기록으로 가요.'],
+    ['weektable', '주간 기록표', '한 주 = 한 줄', 'span3', '왼쪽 7칸은 월~일 매일 활동(진한 색 = 일일 항목 다 함, 연한 색 = 일부, 분홍 = 바쁜 날), 가운데는 주간 과제(✓ = 끝냄), 오른쪽은 그 주 CS 답변 수와 공지 수예요. 맨 아래 합계 줄에 전체 누적이 나와요. 동그라미를 누르면 그날 기록으로 가요. 최근 8주가 보이고, [처음부터 모두 보기]로 전부 볼 수 있어요.'],
     ['chart', 'CS 점수 추이', '주별 평균', '', '매주 일요일 23:50 AI 코치 채점이 끝나면 점이 하나씩 생겨요.'],
-    ['minis', '작은 카드 4개', '항목별 연속일 · 주간 과제 · 게임별 활동 · 엑셀 원인 찾기', 'span3', '핵심 숫자가 보이고, [펼치기]를 누르면 자세한 막대그래프가 나와요. 주간 과제는 주마다 3개 중 몇 개 끝냈는지, 엑셀 원인 찾기는 일요일 채점에서 숨은 원인을 찾았다고 본 보고서 수예요.'],
+    ['minis', '작은 카드 3개', '항목별 연속일 · 게임별 활동 · 엑셀 원인 찾기', 'span3', '핵심 숫자가 보이고, [펼치기]를 누르면 자세한 막대그래프가 나와요. 엑셀 원인 찾기는 일요일 채점에서 숨은 원인을 찾았다고 본 보고서 수예요.'],
   ] },
   settings: { name: '설정', blocks: [
     ['basic', '기본 정보', '제목 · 소개 · 시작일', 'span2', '시작일을 바꾸면 게임 로테이션, 문의 세트, 통계가 그 날짜 기준으로 다시 계산돼요.'],
@@ -1268,7 +1289,8 @@ function viewSummary() {
       <p class="sub">${longDate(start())} 시작 · ${days > 0 ? `${days}일째` : '시작 전'} · 답변은 모두 직접 쓰고, 🤖 AI 코치는 매주 피드백만 남겨요.</p>
     </section>
     ${bigNums()}
-    <section class="card"><div class="card-head"><h2>꾸준함</h2><span class="sub">최근 16주 잔디</span></div>${grassHtml()}</section>
+    <section class="card"><div class="card-head"><h2>꾸준함</h2><span class="sub">주간 기록표 · 매일 활동과 주간 과제</span></div>${weekTableHtml()}</section>
+    ${activityTable()}
     <section class="card"><div class="card-head"><h2>성장</h2><span class="sub">주별 CS 평균 점수</span></div>${chartHtml()}</section>
     <section class="card"><div class="card-head"><h2>결과물 바로가기</h2></div>
       <ul class="missions">${S.missions.map((m) => `<li><div class="m-row"><strong>${esc(m.name)}</strong><span class="num sub">${missionEntries(m).length}/${m.target} ${esc(m.unit || '')}</span></div></li>`).join('') || '<li class="sub">아직 미션이 없어요.</li>'}</ul>
@@ -1464,6 +1486,7 @@ document.addEventListener('click', async (e) => {
     }
     // 통계
     case 'mini': S.ui.mini[id] = !S.ui.mini[id]; render(); break;
+    case 'wt-all': S.ui.wtAll = !S.ui.wtAll; render(); break;
     case 'grass': S.ui.rview = 'date'; S.ui.qopen = null; S.ui.open['d:' + el.dataset.date] = true; location.hash = 'records'; setTimeout(() => document.getElementById('rec-' + el.dataset.date)?.scrollIntoView({ block: 'center' }), 50); break;
     // 설정
     case 'item-add': S.form.dailyItems.push({ id: 'i' + Date.now().toString(36), name: '새 항목', note: '' }); render(); break;

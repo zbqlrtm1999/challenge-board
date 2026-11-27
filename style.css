@@ -291,18 +291,31 @@ textarea[readonly] { background: var(--bg); }
 .bignums { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
 .bignum { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .bignum b { font-family: var(--font-display); font-weight: 400; font-size: 32px; line-height: 1.2; font-variant-numeric: tabular-nums; }
-.grass-wrap { overflow-x: auto; }
-.grass { display: grid; grid-auto-flow: column; grid-template-rows: repeat(7, 14px); gap: 4px; width: max-content; }
-.grass .cell { width: 14px; height: 14px; border-radius: 3px; background: var(--g0); border: 0; padding: 0; cursor: pointer; }
-.grass .cell.l1 { background: var(--g1); } .grass .cell.l2 { background: var(--g2); } .grass .cell.l3 { background: var(--g3); } .grass .cell.l4 { background: var(--g4); }
-.grass .cell.lt { background: var(--glight); }
-.grass .cell.pad { visibility: hidden; }
-.grass .cell.pre { background: transparent; border: 1px dashed var(--line); }
+/* 주간 기록표 */
+.wtable-wrap { overflow-x: auto; }
+.wtable { border-collapse: collapse; width: 100%; min-width: 620px; font-size: 13px; }
+.wtable th, .wtable td { padding: 6px 4px; text-align: center; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.wtable thead th { font-size: 12px; font-weight: 600; color: var(--muted); }
+.wtable tbody th, .wtable tfoot th { text-align: left; font-weight: 500; padding-right: 10px; font-variant-numeric: tabular-nums; }
+.wtable tr.now th { color: var(--sky-deep); font-weight: 700; }
+.wtable .sep { border-left: 1px solid var(--line); }
+.wtable td.num { font-variant-numeric: tabular-nums; font-size: 14px; }
+.wtable td.num small { color: var(--muted); font-size: 11px; margin-left: 1px; }
+.wtable tfoot td, .wtable tfoot th { border-bottom: 0; font-weight: 600; }
+.wtable tfoot td.sub { text-align: left; font-weight: 400; }
+.wtable .dot { display: inline-block; width: 18px; height: 18px; border-radius: 50%; background: var(--g0); border: 0; padding: 0; vertical-align: middle; }
+.wtable button.dot { cursor: pointer; }
+.wtable button.dot:focus-visible { outline: 2px solid var(--sky-deep); outline-offset: 2px; }
+.wtable .dot.l2 { background: var(--g2); } .wtable .dot.l4 { background: var(--g4); } .wtable .dot.lt { background: var(--glight); }
+.wtable .dot.pad { visibility: hidden; }
+.wtable .dot.pre { background: transparent; border: 1px dashed var(--line); }
+.wtable .wk { color: var(--muted); font-size: 15px; }
+.wtable .wk.on { color: var(--ok); font-weight: 700; }
 .legend { display: flex; gap: 10px; flex-wrap: wrap; font-size: 12px; color: var(--muted); align-items: center; }
 .legend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -2px; margin-right: 4px; }
 .chart svg { width: 100%; height: auto; max-height: 260px; display: block; }
 .chart text { fill: var(--muted); font-size: 11px; font-family: var(--font-body); }
-.minis { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: start; }
+.minis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; align-items: start; }
 .mini { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .mini b { font-family: var(--font-display); font-weight: 400; font-size: 20px; }
 .hbar { display: grid; grid-template-columns: minmax(0, 120px) minmax(0, 1fr) 32px; gap: 8px; align-items: center; font-size: 12.5px; }
